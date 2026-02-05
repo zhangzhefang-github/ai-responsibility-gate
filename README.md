@@ -254,7 +254,30 @@ curl -X POST http://localhost:8000/decision \
 - **触发阶段**：Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST
 - **案例文件**：`cases/only_suggest_address_change.json`
 
-**更多案例**：包括路由弱信号、证据缺失、冲突证据等治理边界案例，详见 `cases/` 目录。所有案例可通过 `make replay` 回放验证。
+### 治理边界案例
+
+#### Case 6: 路由弱信号（routing_weak_signal）
+- **场景**：路由证据作为弱信号收紧决策
+- **输入**：`"查订单状态"`
+- **预期决策**：`ONLY_SUGGEST`
+- **触发阶段**：Stage 5 (Conflict Resolution) - Routing weak signal override (confidence >= 0.7, decision_index == 0) → tighten 1 step
+- **案例文件**：`cases/routing_weak_signal.json`
+
+#### Case 7: 证据缺失（missing_evidence）
+- **场景**：缺少关键字段（order_id）触发缺失证据策略
+- **输入**：`"我要退款"` + `{"tool_id": "refund.create", "amount": 1000}`（缺少 order_id）
+- **预期决策**：`HITL`
+- **触发阶段**：Stage 1 (Evidence Collection) - RISK_MISSING_KEY_FIELDS rule hit；Stage 4 (Missing Evidence Policy) - missing_evidence_policy → HITL
+- **案例文件**：`cases/missing_evidence.json`
+
+#### Case 8: 冲突证据（conflict_evidence）
+- **场景**：R3 高风险 + 权限 OK 触发冲突解决策略
+- **输入**：`"我要退款，金额有点大，帮我直接退。"` + `{"tool_id": "refund.create", "order_id": "O123", "amount": 8000, "role": "normal_user"}`
+- **预期决策**：`HITL`
+- **触发阶段**：Stage 3 (Matrix Lookup) - R3 + MONEY action；Stage 5 (Conflict Resolution) - R3 + permission ok → HITL (conflict_resolution policy)
+- **案例文件**：`cases/conflict_evidence.json`
+
+**所有案例可通过 `make replay` 回放验证。**
 
 ---
 
