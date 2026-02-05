@@ -1,0 +1,11 @@
+{
+  "case_id": "routing_weak_signal",
+  "description": "Information query with routing hint (order.query) - demonstrates routing evidence collection",
+  "input": {
+    "text": "查订单状态",
+    "context": {}
+  },
+  "expected": {
+    "decision": "ONLY_SUGGEST"
+  }
+}

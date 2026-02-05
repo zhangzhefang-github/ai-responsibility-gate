@@ -4,8 +4,8 @@
 
 ## Metrics
 
-- Total: 6
-- Correct: 6
+- Total: 9
+- Correct: 9
 - Accuracy: 100.00%
 - False Accept: 0
 - False Reject: 0
@@ -27,6 +27,21 @@
 - ✓ Input: "这个产品怎么样？"
   - Expected: ONLY_SUGGEST, Got: ONLY_SUGGEST
 - ✓ Input: "我要买一百万，帮我操作"
+  - Expected: HITL, Got: HITL
+
+### missing_evidence
+
+- ✓ Input: "我要退款"
+  - Expected: HITL, Got: HITL
+
+### routing_weak_signal
+
+- ✓ Input: "查订单状态"
+  - Expected: ONLY_SUGGEST, Got: ONLY_SUGGEST
+
+### conflict_evidence
+
+- ✓ Input: "我要退款，金额有点大，帮我直接退。"
   - Expected: HITL, Got: HITL
 
 ### deny_guarantee

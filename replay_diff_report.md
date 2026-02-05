@@ -7,11 +7,11 @@
 
 | Metric | Base | Candidate | Delta |
 |--------|------|-----------|-------|
-| Accuracy | 100.00% | 33.33% | -66.67% |
-| False Accept | 0 | 4 | +4 |
+| Accuracy | 100.00% | 44.44% | -55.56% |
+| False Accept | 0 | 5 | +5 |
 | False Reject | 0 | 0 | +0 |
 
-**decision_change_rate:** 66.67%
+**decision_change_rate:** 55.56%
 
 ## Per-Case Changes
 
@@ -31,4 +31,9 @@
   - Input: "这个产品怎么样？"
 - Turn 1: HITL → ALLOW
   - Input: "我要买一百万，帮我操作"
+
+### missing_evidence
+
+- Turn 0: HITL → ONLY_SUGGEST
+  - Input: "我要退款"
 

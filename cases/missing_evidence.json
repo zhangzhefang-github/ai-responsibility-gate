@@ -1,0 +1,14 @@
+{
+  "case_id": "missing_evidence",
+  "description": "Missing order_id triggers RISK_MISSING_KEY_FIELDS and missing_evidence_policy",
+  "input": {
+    "text": "我要退款",
+    "context": {
+      "tool_id": "refund.create",
+      "amount": 1000
+    }
+  },
+  "expected": {
+    "decision": "HITL"
+  }
+}

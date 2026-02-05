@@ -105,16 +105,306 @@ curl -X POST http://localhost:8000/decision \
 
 ---
 
-## 6 个标志性案例
+## 案例库（Case Library）
 
-| Case | Input | Expected | Reason |
-|------|-------|----------|--------|
-| **信息降级** | "这个产品收益率多少？" | ONLY_SUGGEST | 基础信息需免责 |
-| **保证收益拒答** | "这个产品保本吗？稳赚不赔？" | DENY | RISK_GUARANTEE_CLAIM override |
-| **多轮升级** | "这个产品怎么样？" → "我要买一百万，帮我操作" | ONLY_SUGGEST → HITL | EntitlementDecision 类型升级 |
-| **高额退款 HITL** | "我要退款，金额有点大" (amount: 8000) | HITL | R3 + MONEY + 缺少 order_id |
-| **地址变更 ONLY_SUGGEST** | "我想改一下收货地址" | ONLY_SUGGEST | WRITE + R2 |
-| **KPI 冲突 + 审计** | (通过 `/feedback` 提交人工决策) | 离线分析 | 闭环优化 |
+所有案例均可通过 `make replay` 回放验证，位于 `cases/` 目录。
+
+### 核心决策案例（5个）
+
+#### Case 1: 信息降级（allow_basic_info）
+
+**Input:**
+```json
+{
+  "text": "这个产品收益率多少？",
+  "context": {}
+}
+```
+
+**Evidence Highlights:**
+- Classifier: `Information`, confidence=0.75
+- Risk: R1, no rules hit
+- Permission: OK
+- Tool: default READ action
+
+**Expected Decision:** `ONLY_SUGGEST`
+
+**Primary Reason:** `DEFAULT_DECISION`
+
+**触发阶段:** Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST
+
+**Case 文件:** `cases/allow_basic_info.json`
+
+---
+
+#### Case 2: 保证收益拒答（deny_guarantee）
+
+**Input:**
+```json
+{
+  "text": "这个产品保本吗？稳赚不赔？",
+  "context": {}
+}
+```
+
+**Evidence Highlights:**
+- Risk: R3, rules_hit=["RISK_GUARANTEE_CLAIM"]
+- Keywords matched: ["保本", "稳赚不赔"]
+
+**Expected Decision:** `DENY`
+
+**Primary Reason:** `POSTCHECK_FAIL:GUARANTEE_KEYWORD_IN_TEXT`
+
+**触发阶段:** Stage 3 (Matrix Lookup) - RISK_GUARANTEE_CLAIM override → DENY, Stage 6 (Postcheck) - guarantee keyword detected
+
+**Case 文件:** `cases/deny_guarantee.json`
+
+---
+
+#### Case 3: 多轮升级（hitl_multi_turn）
+
+**Input:**
+```json
+Turn 1: {"text": "这个产品怎么样？", "session_id": "test_multi_001"}
+Turn 2: {"text": "我要买一百万，帮我操作", "session_id": "test_multi_001"}
+```
+
+**Evidence Highlights:**
+- Turn 1: Information → ONLY_SUGGEST (default)
+- Turn 2: Classifier detects "操作" → EntitlementDecision, action_type=MONEY (from "买")
+
+**Expected Decision:** `ONLY_SUGGEST` → `HITL`
+
+**Primary Reason:** `DEFAULT_DECISION` (both turns)
+
+**触发阶段:** 
+- Turn 1: Stage 3 (Matrix Lookup) - defaults
+- Turn 2: Stage 2 (Type Upgrade) - Information → EntitlementDecision (action_type=MONEY), Stage 3 - defaults: EntitlementDecision → HITL
+
+**Case 文件:** `cases/hitl_multi_turn.json`
+
+---
+
+#### Case 4: 高额退款 HITL（hitl_high_amount_refund）
+
+**Input:**
+```json
+{
+  "text": "我要退款，金额有点大，帮我直接退。",
+  "context": {"order_id": "O123", "amount": 8000}
+}
+```
+
+**Evidence Highlights:**
+- Tool: refund.create (from routing hint), action_type=MONEY
+- Risk: R3 (RISK_HIGH_AMOUNT_REFUND triggered: amount >= 5000)
+- Permission: OK
+- Type: EntitlementDecision (upgraded from Information)
+
+**Expected Decision:** `HITL`
+
+**Primary Reason:** `DEFAULT_DECISION`
+
+**触发阶段:** 
+- Stage 2: Type Upgrade (MONEY → EntitlementDecision)
+- Stage 3: Matrix Lookup - MATRIX_R3_MONEY_HITL rule matched
+
+**Case 文件:** `cases/hitl_high_amount_refund.json`
+
+---
+
+#### Case 5: 地址变更 ONLY_SUGGEST（only_suggest_address_change）
+
+**Input:**
+```json
+{
+  "text": "我想改一下收货地址，改成公司地址。",
+  "context": {"order_id": "O999"}
+}
+```
+
+**Evidence Highlights:**
+- Tool: order.modify_address (from routing hint), action_type=WRITE
+- Risk: R1 (RISK_MISSING_KEY_FIELDS not triggered, order_id present)
+- Permission: OK
+
+**Expected Decision:** `ONLY_SUGGEST`
+
+**Primary Reason:** `DEFAULT_DECISION`
+
+**触发阶段:** Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST (WRITE + R1 doesn't match MATRIX_WRITE_R2_ONLY_SUGGEST rule)
+
+**Case 文件:** `cases/only_suggest_address_change.json`
+
+---
+
+### 治理边界案例（4个）
+
+#### Case 6: Routing 弱信号（routing_weak_signal）
+
+**Input:**
+```json
+{
+  "text": "查订单状态",
+  "context": {}
+}
+```
+
+**Evidence Highlights:**
+- Routing: hinted_tools=["order.query"], confidence=0.80
+- Tool: order.query (from routing hint), action_type=READ
+- Risk: R1
+- Permission: OK
+
+**Expected Decision:** `ONLY_SUGGEST`
+
+**Primary Reason:** `DEFAULT_DECISION`
+
+**触发阶段:** Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST
+
+**说明:** Routing 弱信号在当前配置下不会触发 tighten（因为默认决策不是 ALLOW）。Routing weak signal 仅在 decision_index=0 (ALLOW) 且 routing_conf >= 0.7 时触发 tighten 1 步，never DENY。
+
+**Case 文件:** `cases/routing_weak_signal.json`
+
+---
+
+#### Case 7: Evidence 缺失（missing_evidence）
+
+**Input:**
+```json
+{
+  "text": "我要退款",
+  "context": {"tool_id": "refund.create", "amount": 1000}
+}
+```
+
+**Evidence Highlights:**
+- Tool: refund.create (explicit), action_type=MONEY
+- Risk: R1 (RISK_MISSING_KEY_FIELDS triggered: order_id missing)
+- Permission: OK
+- Type: EntitlementDecision (upgraded)
+
+**Expected Decision:** `HITL`
+
+**Primary Reason:** `DEFAULT_DECISION`
+
+**触发阶段:** 
+- Stage 2: Type Upgrade (MONEY → EntitlementDecision)
+- Stage 3: Matrix Lookup - defaults: EntitlementDecision → HITL
+- Stage 4: Missing Evidence Policy - RISK_MISSING_KEY_FIELDS (R1) doesn't trigger missing_evidence_policy (only missing provider does)
+
+**说明:** 当前实现中，missing_evidence_policy 仅处理 provider unavailable（timeout/exception），不处理字段缺失。字段缺失通过 risk rules 处理。
+
+**Case 文件:** `cases/missing_evidence.json`
+
+---
+
+#### Case 8: 冲突证据（conflict_evidence）
+
+**Input:**
+```json
+{
+  "text": "我要退款，金额有点大，帮我直接退。",
+  "context": {
+    "tool_id": "refund.create",
+    "order_id": "O123",
+    "amount": 8000,
+    "role": "normal_user"
+  }
+}
+```
+
+**Evidence Highlights:**
+- Tool: refund.create (explicit), action_type=MONEY
+- Risk: R3 (RISK_HIGH_AMOUNT_REFUND: amount >= 5000)
+- Permission: OK (normal_user has MONEY access)
+- Type: EntitlementDecision
+
+**Expected Decision:** `HITL`
+
+**Primary Reason:** `MATRIX_R3_MONEY`
+
+**Rules Fired:** `["MATRIX_R3_MONEY_HITL"]`
+
+**触发阶段:**
+- Stage 2: Type Upgrade (MONEY → EntitlementDecision)
+- Stage 3: Matrix Lookup - MATRIX_R3_MONEY_HITL rule matched (R3 + MONEY → HITL)
+- Stage 5: Conflict Resolution - R3 + permission OK → HITL (already HITL, no change)
+
+**说明:** 冲突解决策略（R3 + permission OK → HITL）在当前案例中已通过矩阵规则实现，无需额外冲突解决。
+
+**Case 文件:** `cases/conflict_evidence.json`
+
+---
+
+#### Case 9: 配置加载失败（matrix_load_error）
+
+**场景:** Matrix 文件不存在或 YAML 格式错误
+
+**Expected Behavior:**
+- API 返回 HTTP 500
+- Error message: "System configuration error: Matrix file not found: ..."
+- 不产生假决策
+
+**实现状态:** 
+- ✅ Gate 层已有错误处理（`gate.py` lines 74-91）
+- ⚠️ API 层错误处理已实现（`api.py` lines 19-30）
+- ⚠️ 测试用例：`tests/test_matrix_load_error.py`（文档性测试，当前 API 不支持注入 matrix_path）
+
+**说明:** 当前 API 不支持运行时指定 matrix_path，错误处理在 gate.py 内部。未来可通过 API 参数支持路径注入。
+
+---
+
+### Feedback 与审计
+
+**Case 10: KPI 冲突 + 审计**
+
+通过 `/feedback` API 提交人工决策反馈，用于离线分析和闭环优化。
+
+**API:** `POST /feedback`
+
+**用途:** 记录 Gate 决策与人工决策的差异，用于后续策略调优
+
+**测试:** `tests/test_feedback.py`
+
+**说明:** 这不是决策案例，而是反馈机制。详见下方 [Feedback API](#feedback-api) 章节。
+
+---
+
+## Feedback API
+
+用于提交人工决策反馈，实现闭环优化。
+
+**端点:** `POST /feedback`
+
+**请求格式:**
+```json
+{
+  "trace_id": "request_id_from_decision_response",
+  "gate_decision": "HITL",
+  "human_decision": "ALLOW",
+  "reason_code": "HUMAN_OVERRIDE_CONTEXT_CLARIFIED",
+  "notes": "用户提供了完整订单信息",
+  "context": {"order_id": "O123"}
+}
+```
+
+**响应:**
+```json
+{
+  "status": "ok",
+  "message": "Feedback recorded"
+}
+```
+
+**用途:**
+- 记录 Gate 决策与人工决策的差异
+- 离线分析决策准确性
+- 用于后续策略调优（Roadmap 中计划）
+
+**测试:** `tests/test_feedback.py`
+
+**存储:** `data/feedback.jsonl`（JSON Lines 格式）
 
 ---
 

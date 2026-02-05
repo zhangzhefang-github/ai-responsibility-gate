@@ -1,0 +1,16 @@
+{
+  "case_id": "conflict_evidence",
+  "description": "R3 risk (high amount) + permission OK triggers conflict resolution",
+  "input": {
+    "text": "我要退款，金额有点大，帮我直接退。",
+    "context": {
+      "tool_id": "refund.create",
+      "order_id": "O123",
+      "amount": 8000,
+      "role": "normal_user"
+    }
+  },
+  "expected": {
+    "decision": "HITL"
+  }
+}
