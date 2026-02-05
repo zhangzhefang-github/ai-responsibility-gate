@@ -1,6 +1,6 @@
 # AI Responsibility Gate 使用说明书
 
-> **作为顶级 AI 产品经理，我为你设计这份完整的使用说明书，帮助你从零开始配置和使用 AI Responsibility Gate。**
+> **完整的配置和使用指南，帮助你从零开始配置和使用 AI Responsibility Gate。**
 
 ---
 

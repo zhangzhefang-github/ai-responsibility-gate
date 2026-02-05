@@ -219,7 +219,7 @@ curl -X POST http://localhost:8000/decision \
 
 ## 📖 使用说明书
 
-> **🎯 作为顶级 AI 产品经理设计，帮助你从零开始配置和使用 AI Responsibility Gate**
+> **🎯 完整的配置和使用指南，帮助你从零开始配置和使用 AI Responsibility Gate**
 
 ### 快速开始
 
