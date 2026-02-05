@@ -340,16 +340,23 @@ curl -X POST http://localhost:8000/decision \
   -H "Content-Type: application/json" \
   -d '{"text": "Is this product guaranteed? Risk-free?", "debug": true}'
 
-# 3. High-amount refund HITL
+# 3. High-amount refund HITL (using context.amount)
 curl -X POST http://localhost:8000/decision \
   -H "Content-Type: application/json" \
   -d '{"text": "I want a refund, the amount is large, please process it directly.", "context": {"amount": 8000}, "debug": true}'
 
-# 4. Verbose mode
+# 4. Address change (using context.order_id)
+curl -X POST http://localhost:8000/decision \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I want to change the delivery address", "context": {"order_id": "O999"}, "debug": true}'
+
+# 5. Verbose mode (view detailed trace)
 curl -X POST http://localhost:8000/decision \
   -H "Content-Type: application/json" \
   -d '{"text": "Refund me 10,000 yuan", "context": {"amount": 10000}, "verbose": true}'
 ```
+
+**More Examples:** See the [Case Library](#case-library) section for complete cases. All cases can be replayed with `make replay`.
 
 ---
 

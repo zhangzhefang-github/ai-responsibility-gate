@@ -200,16 +200,23 @@ curl -X POST http://localhost:8000/decision \
   -H "Content-Type: application/json" \
   -d '{"text": "这个产品保本吗？稳赚不赔？", "debug": true}'
 
-# 3. 高额退款 HITL
+# 3. 高额退款 HITL（使用 context.amount）
 curl -X POST http://localhost:8000/decision \
   -H "Content-Type: application/json" \
   -d '{"text": "我要退款，金额有点大，帮我直接退。", "context": {"amount": 8000}, "debug": true}'
 
-# 4. Verbose 模式
+# 4. 地址变更（使用 context.order_id）
+curl -X POST http://localhost:8000/decision \
+  -H "Content-Type: application/json" \
+  -d '{"text": "我想改一下收货地址", "context": {"order_id": "O999"}, "debug": true}'
+
+# 5. Verbose 模式（查看详细追踪）
 curl -X POST http://localhost:8000/decision \
   -H "Content-Type: application/json" \
   -d '{"text": "给我退 1 万块钱", "context": {"amount": 10000}, "verbose": true}'
 ```
+
+**更多示例：** 完整案例请查看[案例库](#案例库)部分，所有案例可通过 `make replay` 回放验证。
 
 ---
 
