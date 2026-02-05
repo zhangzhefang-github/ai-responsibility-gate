@@ -4,15 +4,19 @@
   <a href="README_EN.md">English</a> | <strong>中文</strong>
 </div>
 
-**AI Responsibility Gate 是一个策略驱动的治理层，在 AI 生成响应之前决定是否允许其回答，提供可回放、可对比、可测试的保证。**
+<div align="center">
 
-> **From "Answer System" to "Responsibility System"** — Making "whether AI is qualified to answer" an explicit system capability, not a post-hoc safeguard.
+**AI Responsibility Gate 是一个策略驱动的治理层，在 AI 生成响应之前决定是否允许其回答，提供可回放、可对比、可测试的保证。**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status: PoC](https://img.shields.io/badge/Status-PoC-orange.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
 
-## Table of Contents
+</div>
+
+---
+
+## 目录
 
 - [项目简介](#项目简介)
 - [核心特性](#核心特性)
@@ -134,10 +138,10 @@ Gate 决策聚合 (priority order)
     1. RISK_GUARANTEE_CLAIM → DENY (override)
     2. Permission denied → HITL
     3. Matrix rule match
-    4. Low confidence → tighten (1 step)
-    5. Routing weak signal → tighten (max 1 step, never DENY)
-    6. Missing evidence → policy-based tighten/hitl
-    7. Conflict resolution → R3 + permission ok → HITL
+    4. Missing evidence → policy-based tighten/hitl
+    5. Conflict resolution → R3 + permission ok → HITL
+    6. Low confidence → tighten (1 step)
+    7. Routing weak signal → tighten (max 1 step, never DENY)
     8. Postcheck → tighten if critical issues
     ↓
 DecisionResponse + Explanation + PolicyInfo
@@ -226,7 +230,7 @@ curl -X POST http://localhost:8000/decision \
 - **场景**：检测保证性承诺关键词
 - **输入**：`"这个产品保本吗？稳赚不赔？"`
 - **预期决策**：`DENY`
-- **触发阶段**：Stage 3 (Matrix Lookup) - RISK_GUARANTEE_CLAIM override → DENY
+- **触发阶段**：Stage 3 (Matrix Lookup) - RISK_GUARANTEE_CLAIM override → DENY；Stage 6 (Postcheck) - guarantee keyword detected（已为 DENY，不再收紧）
 - **案例文件**：`cases/deny_guarantee.json`
 
 #### Case 3: 高额退款 HITL（hitl_high_amount_refund）
@@ -306,7 +310,7 @@ curl -X POST http://localhost:8000/decision \
 - `400` - 无效请求（如：空文本、验证错误）
 - `500` - 系统配置错误（如：矩阵文件未找到）
 
-**查询参数:**
+**请求参数:**
 - `debug` (boolean, 默认: false) - 在响应中包含 `rules_fired`
 - `verbose` (boolean, 默认: false) - 在标准输出打印详细追踪信息
 
@@ -501,16 +505,29 @@ routing_hints:
 
 **场景**：防止 AI 给出投资建议，确保合规性
 
-**配置示例：**
+**配置示例（概念性，实际实现需分两步）：**
+
+**步骤 1：定义风险规则** (`config/risk_rules.yaml`)
 ```yaml
 rules:
-  - rule_id: "FINANCE_INVESTMENT_ADVICE"
+  - rule_id: "RISK_INVESTMENT_ADVICE"
+    type: "keyword"
+    risk_level: "R3"
+    keywords: ["投资", "买入", "卖出", "推荐股票"]
+```
+
+**步骤 2：定义决策规则** (`matrices/finance_compliance.yaml`)
+```yaml
+rules:
+  - rule_id: "MATRIX_R3_INVESTMENT_DENY"
     match:
-      keywords: ["投资", "买入", "卖出", "推荐股票"]
       risk_level: "R3"
+      action_types: ["MONEY"]
     decision: "DENY"
     primary_reason: "COMPLIANCE_INVESTMENT_ADVICE_PROHIBITED"
 ```
+
+**说明**：关键词匹配在 Risk Rules 中定义，决策规则在 Matrix 中基于 `risk_level` 和 `action_types` 匹配。
 
 **价值**：
 - ✅ 在生成前阻止不合规响应，避免合规风险

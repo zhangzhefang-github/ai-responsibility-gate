@@ -4,13 +4,17 @@
   <strong>English</strong> | <a href="README.md">中文</a>
 </div>
 
-**AI Responsibility Gate is a policy-driven governance layer that decides whether an AI system is allowed to respond — before generation happens — with replayable, diffable, and testable guarantees.**
+<div align="center">
 
-> **From "Answer System" to "Responsibility System"** — Making "whether AI is qualified to answer" an explicit system capability, not a post-hoc safeguard.
+**AI Responsibility Gate is a policy-driven governance layer that decides whether an AI system is allowed to respond — before generation happens — with replayable, diffable, and testable guarantees.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status: PoC](https://img.shields.io/badge/Status-PoC-orange.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
+
+</div>
+
+---
 
 ## Table of Contents
 
@@ -88,17 +92,29 @@ Existing open-source projects focus on **post-generation validation and correcti
 
 **Scenario**: Prevent AI from giving investment advice to ensure compliance
 
-**Configuration Example:**
+**Configuration Example (Conceptual - actual implementation requires two steps):**
+
+**Step 1: Define Risk Rules** (`config/risk_rules.yaml`)
 ```yaml
-# matrices/finance_compliance.yaml
 rules:
-  - rule_id: "FINANCE_INVESTMENT_ADVICE"
+  - rule_id: "RISK_INVESTMENT_ADVICE"
+    type: "keyword"
+    risk_level: "R3"
+    keywords: ["investment", "buy", "sell", "stock recommendation"]
+```
+
+**Step 2: Define Decision Rules** (`matrices/finance_compliance.yaml`)
+```yaml
+rules:
+  - rule_id: "MATRIX_R3_INVESTMENT_DENY"
     match:
-      keywords: ["investment", "buy", "sell", "stock recommendation"]
       risk_level: "R3"
+      action_types: ["MONEY"]
     decision: "DENY"
     primary_reason: "COMPLIANCE_INVESTMENT_ADVICE_PROHIBITED"
 ```
+
+**Note:** Keyword matching is defined in Risk Rules, while decision rules in Matrix match based on `risk_level` and `action_types`.
 
 **Value**:
 - ✅ Prevents non-compliant responses before generation, avoiding compliance risks
@@ -262,10 +278,10 @@ Gate Decision Aggregation (priority order)
     1. RISK_GUARANTEE_CLAIM → DENY (override)
     2. Permission denied → HITL
     3. Matrix rule match
-    4. Low confidence → tighten (1 step)
-    5. Routing weak signal → tighten (max 1 step, never DENY)
-    6. Missing evidence → policy-based tighten/hitl
-    7. Conflict resolution → R3 + permission ok → HITL
+    4. Missing evidence → policy-based tighten/hitl
+    5. Conflict resolution → R3 + permission ok → HITL
+    6. Low confidence → tighten (1 step)
+    7. Routing weak signal → tighten (max 1 step, never DENY)
     8. Postcheck → tighten if critical issues
     ↓
 DecisionResponse + Explanation + PolicyInfo
@@ -387,7 +403,7 @@ All cases can be replayed and verified via `make replay`, located in the `cases/
 
 **Primary Reason:** `POSTCHECK_FAIL:GUARANTEE_KEYWORD_IN_TEXT`
 
-**Trigger Stage:** Stage 3 (Matrix Lookup) - RISK_GUARANTEE_CLAIM override → DENY, Stage 6 (Postcheck) - guarantee keyword detected
+**Trigger Stage:** Stage 3 (Matrix Lookup) - RISK_GUARANTEE_CLAIM override → DENY; Stage 6 (Postcheck) - guarantee keyword detected (already DENY, no further tightening)
 
 **Case File:** `cases/deny_guarantee.json`
 
@@ -655,7 +671,7 @@ Make a decision on whether AI can answer the user's request.
 - `400` - Invalid request (e.g., empty text, validation error)
 - `500` - System configuration error (e.g., matrix file not found)
 
-**Query Parameters:**
+**Request Parameters:**
 - `debug` (boolean, default: false) - Include `rules_fired` in response
 - `verbose` (boolean, default: false) - Print detailed trace to stdout
 
