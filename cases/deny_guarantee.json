@@ -1,0 +1,10 @@
+{
+  "case_id": "deny_guarantee",
+  "description": "Guarantee claim detection",
+  "turns": [
+    {
+      "input": {"text": "这个产品保本吗？稳赚不赔？"},
+      "expected_decision": "DENY"
+    }
+  ]
+}

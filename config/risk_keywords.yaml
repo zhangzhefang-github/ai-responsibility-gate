@@ -1,0 +1,12 @@
+version: "1.0"
+guarantee_claim_keywords:
+  - "保本"
+  - "保证收益"
+  - "稳赚不赔"
+  - "百分百"
+  - "一定赚钱"
+high_risk_patterns:
+  - ".*保本.*"
+  - ".*保证.*收益.*"
+disclaimer_templates:
+  default: "仅供参考，不构成任何承诺或投资建议。"

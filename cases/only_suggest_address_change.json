@@ -1,0 +1,13 @@
+{
+  "case_id": "only_suggest_address_change",
+  "input": {
+    "session_id": "s-addr-1",
+    "user_id": "u1",
+    "text": "我想改一下收货地址，改成公司地址。",
+    "debug": true,
+    "context": { "order_id": "O999" }
+  },
+  "expected": {
+    "decision": "ONLY_SUGGEST"
+  }
+}

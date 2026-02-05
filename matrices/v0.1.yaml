@@ -1,0 +1,54 @@
+version: "v0.1"
+defaults:
+  Information: "ONLY_SUGGEST"
+  RiskNotice: "ONLY_SUGGEST"
+  EntitlementDecision: "HITL"
+
+# Task B: Type upgrade rules (YAML-based, no code changes needed)
+type_upgrade_rules:
+  - when:
+      tool_action: "MONEY"
+    upgrade_to: "EntitlementDecision"
+  - when:
+      tool_action: "ENTITLEMENT"
+    upgrade_to: "EntitlementDecision"
+  - when:
+      tool_action: "POLICY"
+    upgrade_to: "EntitlementDecision"
+
+# Task E: Missing evidence and conflict resolution policies
+missing_evidence_policy:
+  missing_risk: "tighten"      # Tighten 1 step when risk evidence missing
+  missing_permission: "hitl"   # Require HITL when permission missing
+  missing_knowledge: "tighten" # Tighten 1 step when knowledge missing
+
+conflict_resolution:
+  # High risk overrides permission OK (fail-closed)
+  risk_high_overrides_permission_ok: true
+  # R3 + permission ok -> HITL (not DENY)
+  r3_with_permission_action: "hitl"
+
+rules:
+  - rule_id: "MATRIX_R3_MONEY_HITL"
+    match:
+      risk_level: "R3"
+      action_types: ["MONEY","ENTITLEMENT"]
+    decision: "HITL"
+    primary_reason: "MATRIX_R3_MONEY"
+
+  - rule_id: "MATRIX_WRITE_R2_ONLY_SUGGEST"
+    match:
+      risk_level: "R2"
+      action_types: ["WRITE"]
+    decision: "ONLY_SUGGEST"
+    primary_reason: "MATRIX_WRITE_R2"
+
+  - rule_id: "MATRIX_POLICY_ONLY_SUGGEST"
+    match:
+      action_types: ["POLICY"]
+    decision: "ONLY_SUGGEST"
+    primary_reason: "MATRIX_POLICY"
+
+confidence_thresholds:
+  low: 0.6
+  very_low: 0.3

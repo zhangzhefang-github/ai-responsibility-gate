@@ -1,0 +1,36 @@
+version: "2026-02-05"
+# Refactored: Action-based permissions (decoupled from tool_id routing)
+roles:
+  normal_user:
+    can_actions:
+      - "READ"          # Query operations
+      - "WRITE"         # Address change, cancel
+      - "MONEY:limited" # Refund own orders (limited amount)
+      - "POLICY"        # Read policy info
+  cs_agent:
+    can_actions:
+      - "READ"
+      - "WRITE"         # Issue coupons
+      - "ENTITLEMENT"   # Handle complaints
+      - "POLICY"
+  finance_operator:
+    can_actions:
+      - "READ"
+      - "MONEY:all"     # Approve refunds, modify amounts
+      - "WRITE"         # Issue coupons
+
+# Action type to permission mapping
+action_permissions:
+  READ:
+    default_roles: ["normal_user", "cs_agent", "finance_operator"]
+  WRITE:
+    default_roles: ["normal_user", "cs_agent", "finance_operator"]
+    restricted: []
+  MONEY:
+    default_roles: ["normal_user", "finance_operator"]
+    restricted: ["cs_agent"]
+  ENTITLEMENT:
+    default_roles: ["cs_agent"]
+    restricted: ["normal_user"]
+  POLICY:
+    default_roles: ["normal_user", "cs_agent", "finance_operator"]

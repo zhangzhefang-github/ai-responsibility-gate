@@ -1,0 +1,8 @@
+version: "2024-01-01"
+kb_id: "poctest_kb"
+expired: false
+last_updated: "2024-01-01T00:00:00Z"
+supported_topics:
+  - "product_info"
+  - "fee_structure"
+  - "risk_disclosure"

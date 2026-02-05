@@ -1,0 +1,10 @@
+{
+  "case_id": "allow_basic_info",
+  "description": "Basic product information inquiry",
+  "turns": [
+    {
+      "input": {"text": "这个产品收益率多少？"},
+      "expected_decision": "ONLY_SUGGEST"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+version: "0.2"
+description: "Relaxed Information to ALLOW, confidence threshold adjusted"
+matrix:
+  Information:
+    default_decision: "ALLOW"
+    requires_disclaimer: false
+  RiskNotice:
+    default_decision: "ONLY_SUGGEST"
+    requires_disclaimer: true
+  EntitlementDecision:
+    default_decision: "HITL"
+    requires_disclaimer: false
+overrides:
+  guarantee_claim_detected:
+    decision: "DENY"
+    reason: "RISK_GUARANTEE_OVERRIDE"
+confidence_thresholds:
+  low: 0.5
+  very_low: 0.25

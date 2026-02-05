@@ -1,0 +1,47 @@
+version: "2026-02-05"
+defaults:
+  amount_currency: "CNY"
+  high_amount_threshold: 5000
+
+rules:
+  - rule_id: "RISK_GUARANTEE_CLAIM"
+    type: "keyword"
+    risk_level: "R3"
+    keywords: ["保本","保证收益","稳赚不赔","百分百","一定赚钱"]
+    reason_code: "RISK_GUARANTEE_OVERRIDE"
+
+  - rule_id: "RISK_COMPLAINT_THREAT"
+    type: "keyword"
+    risk_level: "R2"
+    keywords: ["投诉","曝光","举报","12315","起诉","维权"]
+    reason_code: "RISK_COMPLAINT_SIGNAL"
+
+  - rule_id: "RISK_ENTITLEMENT_CLAIM"
+    type: "keyword"
+    risk_level: "R2"
+    keywords: ["必须赔","赔偿","补偿","精神损失","我要求赔"]
+    reason_code: "RISK_ENTITLEMENT"
+
+  - rule_id: "RISK_AMOUNT_CHANGE"
+    type: "keyword"
+    risk_level: "R3"
+    keywords: ["改价","修改金额","少收","多收","金额变更"]
+    reason_code: "RISK_AMOUNT_CHANGE"
+
+  - rule_id: "RISK_HIGH_AMOUNT_REFUND"
+    type: "threshold"
+    risk_level: "R3"
+    field: "amount"
+    op: ">="
+    value_from_default: "high_amount_threshold"
+    applies_when:
+      tool_ids: ["refund.create","refund.approve"]
+    reason_code: "RISK_HIGH_AMOUNT"
+
+  - rule_id: "RISK_MISSING_KEY_FIELDS"
+    type: "missing_fields"
+    risk_level: "R1"
+    required_fields: ["order_id"]
+    applies_when:
+      tool_ids: ["order.modify_address","refund.create","order.cancel"]
+    reason_code: "RISK_CONTEXT_INCOMPLETE"
