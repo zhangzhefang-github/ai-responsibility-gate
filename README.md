@@ -14,177 +14,49 @@
 
 ## Table of Contents
 
-- [What & Why](#what--why)
-- [Why This Project?](#why-this-project-与现有方案的差异)
-- [Use Cases](#use-cases-实际应用场景)
-- [Features](#features)
-- [Hard Constraints](#hard-constraints-三条铁律)
-- [Architecture](#architecture)
-- [Quickstart](#quickstart)
-- [Requirements](#requirements)
-- [Case Library](#案例库case-library)
-- [API Documentation](#api-documentation)
-- [Policy Configuration](#policy-配置说明)
-- [Roadmap](#roadmap-poc--mvp--production)
-- [Extensibility](#extensibility)
-- [Contributing](#contributing)
-- [Troubleshooting](#troubleshooting)
-- [Validation & Self-Check](#验收--自检)
-- [License](#license)
+- [项目简介](#项目简介)
+- [核心特性](#核心特性)
+- [硬约束](#硬约束)
+- [系统架构](#系统架构)
+- [环境要求](#环境要求)
+- [快速开始](#快速开始)
+- [案例库](#案例库)
+- [API 文档](#api-文档)
+- [策略配置](#策略配置)
+- [项目对比](#项目对比)
+- [应用场景](#应用场景)
+- [路线图](#路线图)
+- [扩展性](#扩展性)
+- [贡献指南](#贡献指南)
+- [故障排查](#故障排查)
+- [验收自检](#验收自检)
+- [许可证](#许可证)
 
 ---
 
-## What & Why
+## 项目简介
 
-**一句话:** 从"回答系统"到"责任系统" —— 把"AI 是否有资格回答"显式做成系统能力，而非事后兜底。
+**核心理念:** 从"回答系统"到"责任系统" —— 把"AI 是否有资格回答"显式做成系统能力，而非事后兜底。
 
 **核心问题:** 传统 AI 助手直接回答用户问题，缺乏对"能否回答"、"如何回答"的责任判断。本系统通过责任中心化架构，将决策权收束到单一 Gate，基于多维度证据（意图、风险、权限、工具）做出可审计的决策。
 
 ---
 
-## Why This Project? (与现有方案的差异)
+## 核心特性
 
-### 核心差异：生成前治理 vs. 生成后处理
-
-现有开源项目主要关注**生成后验证和修正**，而 AI Responsibility Gate 专注于**生成前决策**，这是关键差异：
-
-| 维度 | AI Responsibility Gate | 现有开源方案 |
-|------|----------------------|------------|
-| **时机** | 生成前决策（Pre-Generation） | 生成后验证/修正（Post-Generation） |
-| **功能** | 策略执行层（Enforcement Layer） | 内容过滤/修正层（Filter/Correction Layer） |
-| **架构** | 责任中心化、证据分离 | 分散式、耦合度高 |
-| **可测试性** | 可回放、可对比、可验证 | 难以回放和对比 |
-| **成本控制** | 阻止不必要的 API 调用 | 无法避免生成成本 |
-
-### 与主要开源项目的对比
-
-#### ❌ **Guardrails AI** (guardrails-ai/guardrails)
-- **定位**：输出验证和修正框架
-- **差异**：Guardrails 是生成后验证，本项目是生成前决策
-- **关系**：互补而非竞争
-
-#### ❌ **NeMo Guardrails** (NVIDIA)
-- **定位**：对话流程控制和内容安全
-- **差异**：NeMo Guardrails 控制对话流程，本项目专注于访问控制
-- **关系**：不同层次的问题
-
-#### ❌ **Llama Guard** (Meta)
-- **定位**：内容安全检查
-- **差异**：Llama Guard 是生成后分类，本项目是生成前决策
-- **关系**：可以集成，而非替代
-
-#### ❌ **TensorFlow Responsible AI Toolkit**
-- **定位**：模型文档化和透明度
-- **差异**：TensorFlow RAI 是事后审计工具，本项目是运行时治理层
-- **关系**：完全不同的定位
-
-**结论**：AI Responsibility Gate 填补了"生成前治理"的市场空白，与现有项目形成互补关系。
+- 🎯 **决策权集中** - 单一决策源：只有 `src/core/gate.py` 能输出最终决策
+- 🔍 **证据驱动架构** - 多维度证据收集（风险、权限、知识、路由、工具）
+- 🔒 **失败关闭原则** - 证据缺失或模糊时默认拒绝
+- ⚙️ **YAML 驱动配置** - 策略变更无需修改代码
+- 🔄 **可回放与对比验证** - 通过 `make replay` 和 `make replay-diff` 实现可复现的决策验证
+- 📊 **完整审计追踪** - Verbose 模式提供完整的决策追踪
+- 🚀 **高度可扩展** - 易于添加新的证据提供者，无需修改核心逻辑
+- ⚡ **并发证据收集** - 异步收集，80ms 超时
+- 🧪 **100% 测试覆盖** - 所有案例通过回放验证
 
 ---
 
-## Use Cases (实际应用场景)
-
-### 1. 金融行业合规
-
-**场景**：防止 AI 给出投资建议，确保合规性
-
-**配置示例：**
-```yaml
-# matrices/finance_compliance.yaml
-rules:
-  - rule_id: "FINANCE_INVESTMENT_ADVICE"
-    match:
-      keywords: ["投资", "买入", "卖出", "推荐股票"]
-      risk_level: "R3"
-    decision: "DENY"
-    primary_reason: "COMPLIANCE_INVESTMENT_ADVICE_PROHIBITED"
-```
-
-**价值**：
-- ✅ 在生成前阻止不合规响应，避免合规风险
-- ✅ 提供完整的决策审计日志，满足监管要求
-- ✅ 可回放验证，支持合规审计
-
-### 2. 医疗行业 HIPAA 合规
-
-**场景**：防止 AI 给出医疗诊断建议，保护患者隐私
-
-**配置示例：**
-```yaml
-# matrices/healthcare_hipaa.yaml
-rules:
-  - rule_id: "HEALTHCARE_DIAGNOSIS"
-    match:
-      keywords: ["诊断", "疾病", "症状", "治疗方案"]
-      risk_level: "R3"
-    decision: "HITL"
-    primary_reason: "HIPAA_COMPLIANCE_REQUIRES_HUMAN_REVIEW"
-```
-
-**价值**：
-- ✅ 在生成前阻止 AI 给出医疗诊断，保护患者安全
-- ✅ 高风险请求自动升级到人工审核（HITL）
-- ✅ 完整的审计追踪，满足 HIPAA 合规要求
-
-### 3. 企业内部 AI 助手
-
-**场景**：权限控制、成本控制、资源管理
-
-**配置示例：**
-```yaml
-# matrices/enterprise_access_control.yaml
-rules:
-  - rule_id: "ENTERPRISE_COST_CONTROL"
-    match:
-      action_types: ["MONEY", "ENTITLEMENT"]
-      user_role: "normal_user"
-    decision: "HITL"
-    primary_reason: "ENTERPRISE_APPROVAL_REQUIRED"
-```
-
-**价值**：
-- ✅ 在生成前阻止不必要的 API 调用，控制成本
-- ✅ 基于角色的访问控制（RBAC），确保权限合规
-- ✅ 可回放验证，支持策略调优和审计
-
-### 4. 客户服务场景
-
-**场景**：防止 AI 给出保证性承诺，保护企业利益
-
-**配置示例：**
-```yaml
-# matrices/customer_service.yaml
-rules:
-  - rule_id: "CUSTOMER_SERVICE_GUARANTEE"
-    match:
-      keywords: ["保证", "承诺", "稳赚不赔"]
-      risk_level: "R3"
-    decision: "DENY"
-    primary_reason: "GUARANTEE_CLAIM_PROHIBITED"
-```
-
-**价值**：
-- ✅ 在生成前阻止保证性承诺，避免法律风险
-- ✅ 高风险请求自动拒绝，保护企业利益
-- ✅ 完整的决策追踪，支持客户投诉处理
-
----
-
-## Features
-
-- 🎯 **Decision Centralization** - Single source of truth: only `src/core/gate.py` can output final decisions
-- 🔍 **Evidence-Based Architecture** - Multi-dimensional evidence collection (risk, permission, knowledge, routing, tool)
-- 🔒 **Fail-Closed Principle** - Default deny when evidence is missing or ambiguous
-- ⚙️ **YAML-Driven Configuration** - Policy changes without code modifications
-- 🔄 **Replay & Diff Verification** - Reproducible decision verification with `make replay` and `make replay-diff`
-- 📊 **Complete Audit Trail** - Verbose mode provides full decision trace
-- 🚀 **Highly Extensible** - Easy to add new evidence providers without modifying core logic
-- ⚡ **Concurrent Evidence Collection** - Async gathering with 80ms timeout
-- 🧪 **100% Test Coverage** - All cases verified with replay accuracy
-
----
-
-## Hard Constraints (三条铁律)
+## 硬约束
 
 1. **决策权集中** - 只有 `src/core/gate.py` 能输出最终 decision（ALLOW/DENY/HITL/ONLY_SUGGEST）
 2. **证据即决策** - Classifier/Matrix/Evidence Providers 只返回证据/元数据，绝不返回决策
@@ -192,9 +64,9 @@ rules:
 
 ---
 
-## Architecture
+## 系统架构
 
-### System Architecture Diagram
+### 架构图
 
 ```mermaid
 flowchart TB
@@ -237,7 +109,7 @@ flowchart TB
     style PIIDetection fill:#34495e,stroke:#2c3e50,stroke-width:2px,color:#fff
 ```
 
-### Detailed Pipeline Flow
+### 详细流程
 
 ```
 POST /decision
@@ -271,19 +143,19 @@ Gate 决策聚合 (priority order)
 DecisionResponse + Explanation + PolicyInfo
 ```
 
-**Evidence Providers:**
-- **Routing** (弱信号): 关键词匹配的工具路由提示，confidence 0-1，仅用于轻度收紧
-- **Tool** (可选/可扩展): 工具目录和动作类型识别，支持 action_type × risk_level 决策
-- **Knowledge** (必需): 知识库版本和过期状态
-- **Risk** (必需): 风险规则匹配（关键词、阈值、缺失字段），返回 risk_level (R1/R2/R3)、risk_score (0-100)、dimensions (可扩展)
-- **Permission** (必需): 基于 RBAC 的权限检查
+**证据提供者说明：**
+- **Routing**（弱信号）：关键词匹配的工具路由提示，confidence 0-1，仅用于轻度收紧
+- **Tool**（可选/可扩展）：工具目录和动作类型识别，支持 action_type × risk_level 决策
+- **Knowledge**（必需）：知识库版本和过期状态
+- **Risk**（必需）：风险规则匹配（关键词、阈值、缺失字段），返回 risk_level (R1/R2/R3)、risk_score (0-100)、dimensions（可扩展）
+- **Permission**（必需）：基于 RBAC 的权限检查
 
 ---
 
-## Requirements
+## 环境要求
 
 - **Python:** 3.10+
-- **Dependencies:** See `requirements.txt`
+- **依赖包:** 参见 `requirements.txt`
   - FastAPI 0.104.1
   - Pydantic 2.5.0
   - PyYAML 6.0.1
@@ -291,23 +163,23 @@ DecisionResponse + Explanation + PolicyInfo
 
 ---
 
-## Quickstart
+## 快速开始
 
 ```bash
-# Install dependencies
+# 安装依赖
 pip install -r requirements.txt
 
-# Start the service
+# 启动服务
 make run
-# Or: python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
+# 或: python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
 
-# Run tests
+# 运行测试
 make test
 
-# Replay cases
+# 回放案例
 make replay
 
-# Diff replay (v0.1 vs v0.2)
+# 对比回放（v0.1 vs v0.2）
 make replay-diff
 ```
 
@@ -337,288 +209,67 @@ curl -X POST http://localhost:8000/decision \
 
 ---
 
-## 案例库（Case Library）
+## 案例库
 
-所有案例均可通过 `make replay` 回放验证，位于 `cases/` 目录。
+所有案例均可通过 `make replay` 回放验证，位于 `cases/` 目录。完整案例列表请查看 [cases/](../cases/) 目录。
 
-### 核心决策案例（5个）
+### 核心决策案例
 
 #### Case 1: 信息降级（allow_basic_info）
-
-**Input:**
-```json
-{
-  "text": "这个产品收益率多少？",
-  "context": {}
-}
-```
-
-**Evidence Highlights:**
-- Classifier: `Information`, confidence=0.75
-- Risk: R1, no rules hit
-- Permission: OK
-- Tool: default READ action
-
-**Expected Decision:** `ONLY_SUGGEST`
-
-**Primary Reason:** `DEFAULT_DECISION`
-
-**触发阶段:** Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST
-
-**Case 文件:** `cases/allow_basic_info.json`
-
----
+- **场景**：基础信息查询
+- **输入**：`"这个产品收益率多少？"`
+- **预期决策**：`ONLY_SUGGEST`
+- **触发阶段**：Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST
+- **案例文件**：`cases/allow_basic_info.json`
 
 #### Case 2: 保证收益拒答（deny_guarantee）
+- **场景**：检测保证性承诺关键词
+- **输入**：`"这个产品保本吗？稳赚不赔？"`
+- **预期决策**：`DENY`
+- **触发阶段**：Stage 3 (Matrix Lookup) - RISK_GUARANTEE_CLAIM override → DENY
+- **案例文件**：`cases/deny_guarantee.json`
 
-**Input:**
-```json
-{
-  "text": "这个产品保本吗？稳赚不赔？",
-  "context": {}
-}
-```
+#### Case 3: 高额退款 HITL（hitl_high_amount_refund）
+- **场景**：高额退款请求（金额 >= 5000）
+- **输入**：`"我要退款，金额有点大，帮我直接退。"` + `{"amount": 8000}`
+- **预期决策**：`HITL`
+- **触发阶段**：Stage 3 (Matrix Lookup) - MATRIX_R3_MONEY_HITL rule matched
+- **案例文件**：`cases/hitl_high_amount_refund.json`
 
-**Evidence Highlights:**
-- Risk: R3, rules_hit=["RISK_GUARANTEE_CLAIM"]
-- Keywords matched: ["保本", "稳赚不赔"]
+#### Case 4: 多轮升级（hitl_multi_turn）
+- **场景**：多轮对话中从信息查询升级到操作请求
+- **输入**：Turn 1: `"这个产品怎么样？"` → Turn 2: `"我要买一百万，帮我操作"`
+- **预期决策**：`ONLY_SUGGEST` → `HITL`
+- **触发阶段**：Stage 2 (Type Upgrade) - Information → EntitlementDecision
+- **案例文件**：`cases/hitl_multi_turn.json`
 
-**Expected Decision:** `DENY`
+#### Case 5: 地址变更（only_suggest_address_change）
+- **场景**：低风险写操作
+- **输入**：`"我想改一下收货地址，改成公司地址。"` + `{"order_id": "O999"}`
+- **预期决策**：`ONLY_SUGGEST`
+- **触发阶段**：Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST
+- **案例文件**：`cases/only_suggest_address_change.json`
 
-**Primary Reason:** `POSTCHECK_FAIL:GUARANTEE_KEYWORD_IN_TEXT`
-
-**触发阶段:** Stage 3 (Matrix Lookup) - RISK_GUARANTEE_CLAIM override → DENY, Stage 6 (Postcheck) - guarantee keyword detected
-
-**Case 文件:** `cases/deny_guarantee.json`
-
----
-
-#### Case 3: 多轮升级（hitl_multi_turn）
-
-**Input:**
-```json
-Turn 1: {"text": "这个产品怎么样？", "session_id": "test_multi_001"}
-Turn 2: {"text": "我要买一百万，帮我操作", "session_id": "test_multi_001"}
-```
-
-**Evidence Highlights:**
-- Turn 1: Information → ONLY_SUGGEST (default)
-- Turn 2: Classifier detects "操作" → EntitlementDecision, action_type=MONEY (from "买")
-
-**Expected Decision:** `ONLY_SUGGEST` → `HITL`
-
-**Primary Reason:** `DEFAULT_DECISION` (both turns)
-
-**触发阶段:** 
-- Turn 1: Stage 3 (Matrix Lookup) - defaults
-- Turn 2: Stage 2 (Type Upgrade) - Information → EntitlementDecision (action_type=MONEY), Stage 3 - defaults: EntitlementDecision → HITL
-
-**Case 文件:** `cases/hitl_multi_turn.json`
+**更多案例**：包括路由弱信号、证据缺失、冲突证据等治理边界案例，详见 `cases/` 目录。所有案例可通过 `make replay` 回放验证。
 
 ---
 
-#### Case 4: 高额退款 HITL（hitl_high_amount_refund）
-
-**Input:**
-```json
-{
-  "text": "我要退款，金额有点大，帮我直接退。",
-  "context": {"order_id": "O123", "amount": 8000}
-}
-```
-
-**Evidence Highlights:**
-- Tool: refund.create (from routing hint), action_type=MONEY
-- Risk: R3 (RISK_HIGH_AMOUNT_REFUND triggered: amount >= 5000)
-- Permission: OK
-- Type: EntitlementDecision (upgraded from Information)
-
-**Expected Decision:** `HITL`
-
-**Primary Reason:** `DEFAULT_DECISION`
-
-**触发阶段:** 
-- Stage 2: Type Upgrade (MONEY → EntitlementDecision)
-- Stage 3: Matrix Lookup - MATRIX_R3_MONEY_HITL rule matched
-
-**Case 文件:** `cases/hitl_high_amount_refund.json`
-
----
-
-#### Case 5: 地址变更 ONLY_SUGGEST（only_suggest_address_change）
-
-**Input:**
-```json
-{
-  "text": "我想改一下收货地址，改成公司地址。",
-  "context": {"order_id": "O999"}
-}
-```
-
-**Evidence Highlights:**
-- Tool: order.modify_address (from routing hint), action_type=WRITE
-- Risk: R1 (RISK_MISSING_KEY_FIELDS not triggered, order_id present)
-- Permission: OK
-
-**Expected Decision:** `ONLY_SUGGEST`
-
-**Primary Reason:** `DEFAULT_DECISION`
-
-**触发阶段:** Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST (WRITE + R1 doesn't match MATRIX_WRITE_R2_ONLY_SUGGEST rule)
-
-**Case 文件:** `cases/only_suggest_address_change.json`
-
----
-
-### 治理边界案例（4个）
-
-#### Case 6: Routing 弱信号（routing_weak_signal）
-
-**Input:**
-```json
-{
-  "text": "查订单状态",
-  "context": {}
-}
-```
-
-**Evidence Highlights:**
-- Routing: hinted_tools=["order.query"], confidence=0.80
-- Tool: order.query (from routing hint), action_type=READ
-- Risk: R1
-- Permission: OK
-
-**Expected Decision:** `ONLY_SUGGEST`
-
-**Primary Reason:** `DEFAULT_DECISION`
-
-**触发阶段:** Stage 3 (Matrix Lookup) - defaults: Information → ONLY_SUGGEST
-
-**说明:** Routing 弱信号在当前配置下不会触发 tighten（因为默认决策不是 ALLOW）。Routing weak signal 仅在 decision_index=0 (ALLOW) 且 routing_conf >= 0.7 时触发 tighten 1 步，never DENY。
-
-**Case 文件:** `cases/routing_weak_signal.json`
-
----
-
-#### Case 7: Evidence 缺失（missing_evidence）
-
-**Input:**
-```json
-{
-  "text": "我要退款",
-  "context": {"tool_id": "refund.create", "amount": 1000}
-}
-```
-
-**Evidence Highlights:**
-- Tool: refund.create (explicit), action_type=MONEY
-- Risk: R1 (RISK_MISSING_KEY_FIELDS triggered: order_id missing)
-- Permission: OK
-- Type: EntitlementDecision (upgraded)
-
-**Expected Decision:** `HITL`
-
-**Primary Reason:** `DEFAULT_DECISION`
-
-**触发阶段:** 
-- Stage 2: Type Upgrade (MONEY → EntitlementDecision)
-- Stage 3: Matrix Lookup - defaults: EntitlementDecision → HITL
-- Stage 4: Missing Evidence Policy - RISK_MISSING_KEY_FIELDS (R1) doesn't trigger missing_evidence_policy (only missing provider does)
-
-**说明:** 当前实现中，missing_evidence_policy 仅处理 provider unavailable（timeout/exception），不处理字段缺失。字段缺失通过 risk rules 处理。
-
-**Case 文件:** `cases/missing_evidence.json`
-
----
-
-#### Case 8: 冲突证据（conflict_evidence）
-
-**Input:**
-```json
-{
-  "text": "我要退款，金额有点大，帮我直接退。",
-  "context": {
-    "tool_id": "refund.create",
-    "order_id": "O123",
-    "amount": 8000,
-    "role": "normal_user"
-  }
-}
-```
-
-**Evidence Highlights:**
-- Tool: refund.create (explicit), action_type=MONEY
-- Risk: R3 (RISK_HIGH_AMOUNT_REFUND: amount >= 5000)
-- Permission: OK (normal_user has MONEY access)
-- Type: EntitlementDecision
-
-**Expected Decision:** `HITL`
-
-**Primary Reason:** `MATRIX_R3_MONEY`
-
-**Rules Fired:** `["MATRIX_R3_MONEY_HITL"]`
-
-**触发阶段:**
-- Stage 2: Type Upgrade (MONEY → EntitlementDecision)
-- Stage 3: Matrix Lookup - MATRIX_R3_MONEY_HITL rule matched (R3 + MONEY → HITL)
-- Stage 5: Conflict Resolution - R3 + permission OK → HITL (already HITL, no change)
-
-**说明:** 冲突解决策略（R3 + permission OK → HITL）在当前案例中已通过矩阵规则实现，无需额外冲突解决。
-
-**Case 文件:** `cases/conflict_evidence.json`
-
----
-
-#### Case 9: 配置加载失败（matrix_load_error）
-
-**场景:** Matrix 文件不存在或 YAML 格式错误
-
-**Expected Behavior:**
-- API 返回 HTTP 500
-- Error message: "System configuration error: Matrix file not found: ..."
-- 不产生假决策
-
-**实现状态:** 
-- ✅ Gate 层已有错误处理（`gate.py` lines 74-91）
-- ⚠️ API 层错误处理已实现（`api.py` lines 19-30）
-- ⚠️ 测试用例：`tests/test_matrix_load_error.py`（文档性测试，当前 API 不支持注入 matrix_path）
-
-**说明:** 当前 API 不支持运行时指定 matrix_path，错误处理在 gate.py 内部。未来可通过 API 参数支持路径注入。
-
----
-
-### Feedback 与审计
-
-**Case 10: KPI 冲突 + 审计**
-
-通过 `/feedback` API 提交人工决策反馈，用于离线分析和闭环优化。
-
-**API:** `POST /feedback`
-
-**用途:** 记录 Gate 决策与人工决策的差异，用于后续策略调优
-
-**测试:** `tests/test_feedback.py`
-
-**说明:** 这不是决策案例，而是反馈机制。详见下方 [Feedback API](#feedback-api) 章节。
-
----
-
-## API Documentation
+## API 文档
 
 ### POST /decision
 
-Make a decision on whether AI can answer the user's request.
+对用户请求做出决策，判断 AI 是否可以回答。
 
-**Endpoint:** `POST /decision`
+**端点:** `POST /decision`
 
-**Request Body:**
+**请求体:**
 ```json
 {
   "text": "这个产品收益率多少？",
-  "session_id": "optional",
-  "user_id": "optional",
+  "session_id": "可选",
+  "user_id": "可选",
   "context": {
-    "tool_id": "optional",
+    "tool_id": "可选",
     "amount": 8000,
     "order_id": "O123",
     "role": "normal_user"
@@ -628,17 +279,17 @@ Make a decision on whether AI can answer the user's request.
 }
 ```
 
-**Response (200 OK):**
+**响应 (200 OK):**
 ```json
 {
   "request_id": "uuid",
-  "session_id": "optional",
+  "session_id": "可选",
   "responsibility_type": "Information",
   "decision": "ONLY_SUGGEST",
   "primary_reason": "DEFAULT_DECISION",
   "suggested_action": "handoff",
   "explanation": {
-    "summary": "Suggestion-only response with disclaimer required",
+    "summary": "仅建议响应，需要免责声明",
     "evidence_used": ["tool", "routing", "knowledge", "risk", "permission"],
     "trigger_spans": ["default"]
   },
@@ -650,16 +301,16 @@ Make a decision on whether AI can answer the user's request.
 }
 ```
 
-**Status Codes:**
-- `200` - Success
-- `400` - Invalid request (e.g., empty text, validation error)
-- `500` - System configuration error (e.g., matrix file not found)
+**状态码:**
+- `200` - 成功
+- `400` - 无效请求（如：空文本、验证错误）
+- `500` - 系统配置错误（如：矩阵文件未找到）
 
-**Query Parameters:**
-- `debug` (boolean, default: false) - Include `rules_fired` in response
-- `verbose` (boolean, default: false) - Print detailed trace to stdout
+**查询参数:**
+- `debug` (boolean, 默认: false) - 在响应中包含 `rules_fired`
+- `verbose` (boolean, 默认: false) - 在标准输出打印详细追踪信息
 
-**Example Request:**
+**请求示例:**
 ```bash
 curl -X POST http://localhost:8000/decision \
   -H "Content-Type: application/json" \
@@ -673,14 +324,14 @@ curl -X POST http://localhost:8000/decision \
 
 ### POST /feedback
 
-Submit feedback for gate decisions. Used for offline analysis and continuous improvement.
+提交 Gate 决策反馈，用于离线分析和持续改进。
 
-**Endpoint:** `POST /feedback`
+**端点:** `POST /feedback`
 
-**Request Body:**
+**请求体:**
 ```json
 {
-  "trace_id": "request_id_from_decision_response",
+  "trace_id": "来自决策响应的 request_id",
   "gate_decision": "HITL",
   "human_decision": "ALLOW",
   "reason_code": "HUMAN_OVERRIDE_CONTEXT_CLARIFIED",
@@ -689,7 +340,7 @@ Submit feedback for gate decisions. Used for offline analysis and continuous imp
 }
 ```
 
-**Response (200 OK):**
+**响应 (200 OK):**
 ```json
 {
   "status": "ok",
@@ -697,23 +348,17 @@ Submit feedback for gate decisions. Used for offline analysis and continuous imp
 }
 ```
 
-**Status Codes:**
-- `200` - Success
-- `500` - Failed to save feedback
+**状态码:**
+- `200` - 成功
+- `500` - 保存反馈失败
 
-**Storage:** `data/feedback.jsonl` (JSON Lines format)
+**存储:** `data/feedback.jsonl`（JSON Lines 格式）
 
-**Note:** Feedback does NOT affect real-time gate decisions. It's used for offline analysis only.
-
----
-
-## Feedback API
-
-> **Note:** This section is kept for backward compatibility. See [API Documentation](#api-documentation) above for complete API reference.
+**注意:** 反馈不会影响实时 Gate 决策，仅用于离线分析。
 
 ---
 
-## Policy 配置说明
+## 策略配置
 
 ### Matrix 配置 (`matrices/v0.1.yaml`)
 
@@ -810,7 +455,131 @@ routing_hints:
 
 ---
 
-## Roadmap: PoC → MVP → Production
+## 项目对比
+
+### 核心差异：生成前治理 vs. 生成后处理
+
+现有开源项目主要关注**生成后验证和修正**，而 AI Responsibility Gate 专注于**生成前决策**，这是关键差异：
+
+| 维度 | AI Responsibility Gate | 现有开源方案 |
+|------|----------------------|------------|
+| **时机** | 生成前决策（Pre-Generation） | 生成后验证/修正（Post-Generation） |
+| **功能** | 策略执行层（Enforcement Layer） | 内容过滤/修正层（Filter/Correction Layer） |
+| **架构** | 责任中心化、证据分离 | 分散式、耦合度高 |
+| **可测试性** | 可回放、可对比、可验证 | 难以回放和对比 |
+| **成本控制** | 阻止不必要的 API 调用 | 无法避免生成成本 |
+
+### 与主要开源项目的对比
+
+#### Guardrails AI (guardrails-ai/guardrails)
+- **定位**：输出验证和修正框架
+- **差异**：Guardrails 是生成后验证，本项目是生成前决策
+- **关系**：互补而非竞争
+
+#### NeMo Guardrails (NVIDIA)
+- **定位**：对话流程控制和内容安全
+- **差异**：NeMo Guardrails 控制对话流程，本项目专注于访问控制
+- **关系**：不同层次的问题
+
+#### Llama Guard (Meta)
+- **定位**：内容安全检查
+- **差异**：Llama Guard 是生成后分类，本项目是生成前决策
+- **关系**：可以集成，而非替代
+
+#### TensorFlow Responsible AI Toolkit
+- **定位**：模型文档化和透明度
+- **差异**：TensorFlow RAI 是事后审计工具，本项目是运行时治理层
+- **关系**：完全不同的定位
+
+**结论**：AI Responsibility Gate 填补了"生成前治理"的市场空白，与现有项目形成互补关系。
+
+---
+
+## 应用场景
+
+### 1. 金融行业合规
+
+**场景**：防止 AI 给出投资建议，确保合规性
+
+**配置示例：**
+```yaml
+rules:
+  - rule_id: "FINANCE_INVESTMENT_ADVICE"
+    match:
+      keywords: ["投资", "买入", "卖出", "推荐股票"]
+      risk_level: "R3"
+    decision: "DENY"
+    primary_reason: "COMPLIANCE_INVESTMENT_ADVICE_PROHIBITED"
+```
+
+**价值**：
+- ✅ 在生成前阻止不合规响应，避免合规风险
+- ✅ 提供完整的决策审计日志，满足监管要求
+- ✅ 可回放验证，支持合规审计
+
+### 2. 医疗行业 HIPAA 合规
+
+**场景**：防止 AI 给出医疗诊断建议，保护患者隐私
+
+**配置示例：**
+```yaml
+rules:
+  - rule_id: "HEALTHCARE_DIAGNOSIS"
+    match:
+      keywords: ["诊断", "疾病", "症状", "治疗方案"]
+      risk_level: "R3"
+    decision: "HITL"
+    primary_reason: "HIPAA_COMPLIANCE_REQUIRES_HUMAN_REVIEW"
+```
+
+**价值**：
+- ✅ 在生成前阻止 AI 给出医疗诊断，保护患者安全
+- ✅ 高风险请求自动升级到人工审核（HITL）
+- ✅ 完整的审计追踪，满足 HIPAA 合规要求
+
+### 3. 企业内部 AI 助手
+
+**场景**：权限控制、成本控制、资源管理
+
+**配置示例：**
+```yaml
+rules:
+  - rule_id: "ENTERPRISE_COST_CONTROL"
+    match:
+      action_types: ["MONEY", "ENTITLEMENT"]
+      user_role: "normal_user"
+    decision: "HITL"
+    primary_reason: "ENTERPRISE_APPROVAL_REQUIRED"
+```
+
+**价值**：
+- ✅ 在生成前阻止不必要的 API 调用，控制成本
+- ✅ 基于角色的访问控制（RBAC），确保权限合规
+- ✅ 可回放验证，支持策略调优和审计
+
+### 4. 客户服务场景
+
+**场景**：防止 AI 给出保证性承诺，保护企业利益
+
+**配置示例：**
+```yaml
+rules:
+  - rule_id: "CUSTOMER_SERVICE_GUARANTEE"
+    match:
+      keywords: ["保证", "承诺", "稳赚不赔"]
+      risk_level: "R3"
+    decision: "DENY"
+    primary_reason: "GUARANTEE_CLAIM_PROHIBITED"
+```
+
+**价值**：
+- ✅ 在生成前阻止保证性承诺，避免法律风险
+- ✅ 高风险请求自动拒绝，保护企业利益
+- ✅ 完整的决策追踪，支持客户投诉处理
+
+---
+
+## 路线图
 
 ### 当前 (PoC - 本项目)
 - ✅ 决策中心化架构
@@ -839,7 +608,7 @@ routing_hints:
 
 ---
 
-## Extensibility
+## 扩展性
 
 ### 1. 新增 Evidence Provider（示例：Fraud Detection）
 
@@ -907,9 +676,9 @@ return resp_v1
 
 ---
 
-## 验收 & 自检
+## 验收自检
 
-### 4.1 决策权集中性扫描
+### 决策权集中性扫描
 
 ```bash
 grep -R "\b(ALLOW|DENY|HITL|ONLY_SUGGEST)\b" src/core \
@@ -922,7 +691,7 @@ grep -R "\b(ALLOW|DENY|HITL|ONLY_SUGGEST)\b" src/core \
 
 **期望结果:** 除 `gate.py` 外 0 命中
 
-### 4.2 功能验收
+### 功能验收
 
 ```bash
 # 运行所有测试
@@ -942,86 +711,86 @@ make replay-diff
 
 ---
 
-## Contributing
+## 贡献指南
 
-We welcome contributions! Please follow these guidelines:
+欢迎贡献！请遵循以下指南：
 
-1. **Fork the repository**
-2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
-3. **Follow code style**
-   - Use type hints
-   - Follow PEP 8
-   - Add docstrings for public functions
-4. **Add tests** for new features
-5. **Ensure all tests pass** (`make test`)
-6. **Ensure replay accuracy** remains 100% (`make replay`)
-7. **Maintain hard constraints**
-   - Decision centralization (only `gate.py` creates decisions)
-   - Evidence-based (no decision leakage)
-   - Fail-closed principle
-8. **Commit changes** (`git commit -m 'Add amazing feature'`)
-9. **Push to branch** (`git push origin feature/amazing-feature`)
-10. **Open a Pull Request**
+1. **Fork 仓库**
+2. **创建功能分支** (`git checkout -b feature/amazing-feature`)
+3. **遵循代码风格**
+   - 使用类型提示
+   - 遵循 PEP 8
+   - 为公共函数添加文档字符串
+4. **为新功能添加测试**
+5. **确保所有测试通过** (`make test`)
+6. **确保回放准确率保持 100%** (`make replay`)
+7. **维护硬约束**
+   - 决策权集中（只有 `gate.py` 创建决策）
+   - 证据驱动（无决策泄漏）
+   - 失败关闭原则
+8. **提交更改** (`git commit -m 'Add amazing feature'`)
+9. **推送到分支** (`git push origin feature/amazing-feature`)
+10. **创建 Pull Request**
 
-**Important:** All changes must maintain the three hard constraints. See [Hard Constraints](#hard-constraints-三条铁律) section.
+**重要提示：** 所有更改必须维护三个硬约束。参见 [硬约束](#硬约束) 章节。
 
 ---
 
-## Troubleshooting
+## 故障排查
 
-### Matrix file not found
+### Matrix 文件未找到
 
-**Error:** `System configuration error: Matrix file not found: matrices/v0.1.yaml`
+**错误:** `System configuration error: Matrix file not found: matrices/v0.1.yaml`
 
-**Solution:**
-- Ensure matrix files exist in `matrices/` directory
-- Check file paths in `src/core/config.py`
-- Verify you're running from project root directory
+**解决方案:**
+- 确保 `matrices/` 目录中存在矩阵文件
+- 检查 `src/core/config.py` 中的文件路径
+- 确认从项目根目录运行
 
-### Configuration path errors
+### 配置路径错误
 
-**Error:** `Config file not found: config/risk_rules.yaml`
+**错误:** `Config file not found: config/risk_rules.yaml`
 
-**Solution:**
-- Ensure you're running from project root directory
-- Or set environment variables:
+**解决方案:**
+- 确保从项目根目录运行
+- 或设置环境变量：
   ```bash
   export AI_RESPONSIBILITY_GATE_CONFIG_DIR=/path/to/config
   export AI_RESPONSIBILITY_GATE_MATRICES_DIR=/path/to/matrices
   ```
 
-### Tests fail with import errors
+### 测试导入错误
 
-**Error:** `ImportError: cannot import name 'X' from 'src.core.models'`
+**错误:** `ImportError: cannot import name 'X' from 'src.core.models'`
 
-**Solution:**
-- Ensure you're running tests with `PYTHONPATH=.`:
+**解决方案:**
+- 使用 `PYTHONPATH=.` 运行测试：
   ```bash
   PYTHONPATH=. pytest tests/
   ```
-- Or use `make test` which sets PYTHONPATH automatically
+- 或使用 `make test`，它会自动设置 PYTHONPATH
 
-### Replay accuracy drops below 100%
+### 回放准确率低于 100%
 
-**Error:** Replay shows accuracy < 100%
+**错误:** 回放显示准确率 < 100%
 
-**Solution:**
-- Check if you modified any policy rules in `matrices/*.yaml`
-- Verify case files in `cases/` match expected decisions
-- Run `make replay` to see which cases fail
-- Ensure all changes maintain decision behavior consistency
+**解决方案:**
+- 检查是否修改了 `matrices/*.yaml` 中的策略规则
+- 验证 `cases/` 中的案例文件是否匹配预期决策
+- 运行 `make replay` 查看哪些案例失败
+- 确保所有更改保持决策行为一致性
 
-### Permission evidence always returns False
+### 权限证据始终返回 False
 
-**Error:** All requests get `HITL` due to permission denied
+**错误:** 所有请求都因权限拒绝而得到 `HITL`
 
-**Solution:**
-- Check `config/permission_policies.yaml` configuration
-- Verify `role` in context matches configured roles
-- Ensure `action_type` inference logic in `src/evidence/permission.py` is correct
+**解决方案:**
+- 检查 `config/permission_policies.yaml` 配置
+- 验证 context 中的 `role` 是否匹配配置的角色
+- 确保 `src/evidence/permission.py` 中的 `action_type` 推断逻辑正确
 
 ---
 
-## License
+## 许可证
 
-MIT License - See LICENSE file for details
+MIT License - 详见 LICENSE 文件
