@@ -1,18 +1,14 @@
 # AI Responsibility Gate
 
-<div align="right">
-  <strong>English</strong> | <a href="README.md">中文</a>
-</div>
+[![tests](https://img.shields.io/badge/tests-13%20passing-brightgreen.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
+[![version](https://img.shields.io/badge/version-0.1-blue.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-<div align="center">
+**English** | [简体中文](README.md)
 
-**AI Responsibility Gate is a policy-driven governance layer that decides whether an AI system is allowed to respond — before generation happens — with replayable, diffable, and testable guarantees.**
+A governance gate for Agent systems that decides whether an action is allowed, restricted, escalated, or stopped, based on risk and responsibility, not just intent.
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: PoC](https://img.shields.io/badge/Status-PoC-orange.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
-
-</div>
+This project focuses on engineering control for probabilistic AI systems, not on model capability, prompt design, or user experience optimization.
 
 ---
 

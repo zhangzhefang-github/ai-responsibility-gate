@@ -1,18 +1,14 @@
 # AI Responsibility Gate
 
-<div align="right">
-  <a href="README_EN.md">English</a> | <strong>中文</strong>
-</div>
+[![tests](https://img.shields.io/badge/tests-13%20passing-brightgreen.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
+[![version](https://img.shields.io/badge/version-0.1-blue.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-<div align="center">
+[English](README_EN.md) | **简体中文**
 
-**AI Responsibility Gate 是一个策略驱动的治理层，在 AI 生成响应之前决定是否允许其回答，提供可回放、可对比、可测试的保证。**
+AI Responsibility Gate 是一个策略驱动的治理层，在 AI 生成响应之前决定是否允许其回答，提供可回放、可对比、可测试的保证。
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: PoC](https://img.shields.io/badge/Status-PoC-orange.svg)](https://github.com/zhangzhefang-github/ai-responsibility-gate)
-
-</div>
+本项目专注于概率性 AI 系统的工程控制，而非模型能力、提示设计或用户体验优化。
 
 ---
 
