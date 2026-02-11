@@ -1,0 +1,47 @@
+version: "pr_loop_phase_e_v0.1"
+
+description: "Matrix for converged PR review loop (after N consecutive benign rounds)."
+
+defaults:
+  # For converged loop, default behavior is ALLOW for informational content.
+  Information: "ALLOW"
+  RiskNotice: "ONLY_SUGGEST"
+  EntitlementDecision: "HITL"
+
+rules:
+  # Even in converged state, high-risk signals should still escalate
+  - rule_id: "PR_LOOP_PHASE_E_R3_HITL"
+    match:
+      risk_level: "R3"
+      action_types: ["READ"]
+    decision: "HITL"
+    primary_reason: "PR_LOOP_HIGH_RISK"
+
+  # Medium-risk (bug) in converged state → continue with ONLY_SUGGEST
+  - rule_id: "PR_LOOP_PHASE_E_R2_CONTINUE"
+    match:
+      risk_level: "R2"
+      action_types: ["READ"]
+    decision: "ONLY_SUGGEST"
+    primary_reason: "PR_LOOP_CONTINUE"
+
+  # Benign converged (R0) → allow directly
+  - rule_id: "PR_LOOP_PHASE_E_R0_ALLOW"
+    match:
+      risk_level: "R0"
+      action_types: ["READ"]
+    decision: "ALLOW"
+    primary_reason: "PR_LOOP_CONVERGED"
+
+confidence_thresholds:
+  low: 0.6
+  very_low: 0.3
+
+missing_evidence_policy:
+  missing_risk: "tighten"
+  missing_permission: "hitl"
+  missing_knowledge: "tighten"
+
+conflict_resolution:
+  risk_high_overrides_permission_ok: true
+  r3_with_permission_action: "hitl"

@@ -1,0 +1,31 @@
+version: "pr_loop_demo_v0.1"
+
+defaults:
+  # For loop demo, default behavior is ONLY_SUGGEST for informational content.
+  Information: "ONLY_SUGGEST"
+  RiskNotice: "ONLY_SUGGEST"
+  EntitlementDecision: "HITL"
+
+rules:
+  # High-risk signals (e.g., SECURITY_BOUNDARY / BUILD_CHAIN) mapped to R3
+  # should lead to HITL, even in loop demo.
+  - rule_id: "PR_LOOP_R3_HITL"
+    match:
+      risk_level: "R3"
+      action_types: ["READ"]
+    decision: "HITL"
+    primary_reason: "PR_LOOP_HIGH_RISK"
+
+confidence_thresholds:
+  low: 0.6
+  very_low: 0.3
+
+missing_evidence_policy:
+  missing_risk: "tighten"
+  missing_permission: "hitl"
+  missing_knowledge: "tighten"
+
+conflict_resolution:
+  risk_high_overrides_permission_ok: true
+  r3_with_permission_action: "hitl"
+

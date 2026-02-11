@@ -14,7 +14,7 @@ from .models import (
     PostcheckResult
 )
 from .classifier import classify
-from .matrix import load_matrix
+from .matrix import load_matrix, resolve_matrix_path
 from .postcheck import postcheck
 from .gate_helpers import collect_all_evidence
 from .gate_stages import (
@@ -23,6 +23,7 @@ from .gate_stages import (
     apply_missing_evidence_policy,
     apply_conflict_resolution_and_overrides,
 )
+from .loop_guard import parse_loop_state, evaluate_loop_guard
 
 # Decision strict order (only used for mapping intermediate states to Decision enum)
 STRICT_ORDER = ["ALLOW", "ONLY_SUGGEST", "HITL", "DENY"]
@@ -67,11 +68,22 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
         request_id=req_id,
         session_id=req.session_id,
         user_id=req.user_id,
+        # Phase C: text is optional; pass through as-is (None allowed).
+        # Any legacy text-based logic should locally normalize via
+        # `text = ctx.text or ""` inside its own module.
         text=req.text,
         debug=req.debug,
         verbose=req.verbose,
-        context=req.context
+        context=req.context,
+        structured_input=req.structured_input,
     )
+
+    # Optional LoopState (Phase B: core-level Loop Guard hook).
+    # Callers MAY pass a \"loop_state\" object via DecisionRequest.context.
+    # Core treats it as opaque and domain-agnostic; default behavior is no-op.
+    loop_state = None
+    if req.context and isinstance(req.context, dict) and "loop_state" in req.context:
+        loop_state = parse_loop_state(req.context.get("loop_state"))
 
     trace = []
     if req.verbose:
@@ -80,15 +92,22 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
         if req.context:
             trace.append(f"[TRACE] Context: {req.context}")
 
+    # Resolve matrix path based on optional profile (Phase D: profile → matrix L1)
+    profile = None
+    if req.structured_input and isinstance(req.structured_input, dict):
+        profile = req.structured_input.get("profile")
+
+    effective_matrix_path = resolve_matrix_path(profile, matrix_path)
+
     # Load matrix with error handling
     try:
-        matrix = load_matrix(matrix_path)
+        matrix = load_matrix(effective_matrix_path)
     except FileNotFoundError as e:
         if req.verbose:
-            trace.append(f"[TRACE] FATAL: Matrix file not found: {matrix_path}")
+            trace.append(f"[TRACE] FATAL: Matrix file not found: {effective_matrix_path}")
             print("\n".join(trace))
         raise RuntimeError(
-            f"System configuration error: Matrix file not found: {matrix_path}. "
+            f"System configuration error: Matrix file not found: {effective_matrix_path}. "
             f"System cannot make decisions without matrix configuration."
         ) from e
     except ValueError as e:
@@ -96,11 +115,17 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
             trace.append(f"[TRACE] FATAL: Invalid matrix configuration: {e}")
             print("\n".join(trace))
         raise RuntimeError(
-            f"System configuration error: Invalid matrix file {matrix_path}: {e}. "
+            f"System configuration error: Invalid matrix file {effective_matrix_path}: {e}. "
             f"Please check matrix YAML syntax and structure."
         ) from e
     
-    classifier_result = await classify(req.text)
+    if req.verbose:
+        trace.append(
+            f"[TRACE] 0. Profile → Matrix: profile={profile or 'default'}, "
+            f"matrix_path={effective_matrix_path}"
+        )
+
+    classifier_result = await classify(ctx)
 
     if req.verbose:
         trace.append(f"[TRACE] 1. Classifier: type={classifier_result.type.value}, confidence={classifier_result.confidence}")
@@ -156,6 +181,24 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
     )
     decision_index = conflict_result["decision_index"]
     primary_reason = conflict_result["primary_reason"]
+
+    # Stage 5.5: Loop Guard (core-level hook, default no-op, tighten-only safe)
+    # Always execute for L0 consistency and uniform audit/replay semantics.
+    new_decision_index = evaluate_loop_guard(
+        decision_index,
+        loop_state,
+        trace if req.verbose else []
+    )
+    # Enforce tighten-only at the call site: never allow relax.
+    if new_decision_index < decision_index:
+        # Ignore any attempted relax from custom implementations.
+        if req.verbose:
+            trace.append(
+                "[TRACE] 5.5 LoopGuard: attempted relax ignored "
+                f"(from index={decision_index} to index={new_decision_index})"
+            )
+    else:
+        decision_index = new_decision_index
 
     # Map intermediate state to Decision enum (ONLY place where Decision is created)
     decision = _map_index_to_decision(decision_index)

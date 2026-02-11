@@ -1,0 +1,31 @@
+version: "pr_loop_churn_v0.1"
+
+description: "Matrix for loop-churn scenario (max_rounds reached)."
+
+defaults:
+  # For churn scenario, always escalate to HITL
+  Information: "HITL"
+  RiskNotice: "HITL"
+  EntitlementDecision: "HITL"
+
+rules:
+  # When automation budget is exhausted (max_rounds reached),
+  # always escalate to HITL regardless of risk level.
+  - rule_id: "PR_LOOP_CHURN_HITL"
+    match:
+      action_types: ["READ"]
+    decision: "HITL"
+    primary_reason: "PR_LOOP_CHURN"
+
+confidence_thresholds:
+  low: 0.6
+  very_low: 0.3
+
+missing_evidence_policy:
+  missing_risk: "tighten"
+  missing_permission: "hitl"
+  missing_knowledge: "tighten"
+
+conflict_resolution:
+  risk_high_overrides_permission_ok: true
+  r3_with_permission_action: "hitl"

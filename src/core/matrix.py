@@ -1,5 +1,5 @@
 import yaml
-from typing import Optional
+from typing import Optional, Dict
 from .config import get_matrix_path
 
 class Matrix:
@@ -56,3 +56,26 @@ def load_matrix(path: str) -> Matrix:
     if path not in _matrices:
         _matrices[path] = Matrix(path)
     return _matrices[path]
+
+
+# Phase D: Minimal, repo-agnostic profile → matrix resolver (L1 ≤ 20 行)
+# NOTE:
+# - Keys are opaque profile strings carried via structured_input["profile"]
+# - Values are matrix paths understood by existing load_matrix()
+_PROFILE_MATRIX_MAP: Dict[str, str] = {
+    # Demo-only profile used in examples/pr_gate_ai_review_loop/*
+    "pr_review_loop": "matrices/pr_loop_demo.yaml",
+}
+
+
+def resolve_matrix_path(profile: Optional[str], default_path: str) -> str:
+    """
+    Resolve matrix path based on an optional profile string.
+
+    Rules:
+    - If profile is None/unknown → fallback to default_path (backward compatible)
+    - If profile is known → return mapped matrix path
+    """
+    if not profile:
+        return default_path
+    return _PROFILE_MATRIX_MAP.get(profile, default_path)

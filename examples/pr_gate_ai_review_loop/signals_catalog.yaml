@@ -1,0 +1,52 @@
+version: "v0.1"
+
+signals:
+  - name: SECURITY_BOUNDARY
+    description: "Potential violation of security or authorization boundaries (e.g., authz/authn, PII, secrets)."
+    evidence_examples:
+      - "这里可能存在 SQL 注入风险"
+      - "敏感信息未加密"
+      - "权限检查不完整"
+      - "可能存在 XSS 漏洞"
+    default_risk_floor: "R3"
+
+  - name: BUILD_CHAIN
+    description: "Changes touching build/CI/deployment or dependency chain."
+    evidence_examples:
+      - "构建脚本需要更新"
+      - "CI 配置可能有问题"
+      - "缺少必要的依赖"
+      - "修改 package.json 中的依赖版本"
+    default_risk_floor: "R3"
+
+  - name: BUG_RISK
+    description: "Potential correctness / runtime bug risk in code changes."
+    evidence_examples:
+      - "这里可能存在空指针异常"
+      - "缺少错误处理"
+      - "边界条件未检查"
+      - "可能导致内存泄漏"
+    default_risk_floor: "R2"
+
+  - name: LOW_VALUE_NITS
+    description: "Low-value nit/style comments that should never independently block a PR."
+    evidence_examples:
+      - "变量命名可以更清晰"
+      - "建议添加空行以提高可读性"
+      - "代码格式可以优化"
+      - "建议添加注释"
+    default_risk_floor: "R0"
+
+  - name: UNKNOWN_SIGNAL
+    description: "Catch-all for any signal not currently in the allowlist; handled with conservative policies."
+    evidence_examples:
+      - "Any reviewer tag not mapped explicitly in the catalog."
+    default_risk_floor: "R1"
+
+  - name: MULTI_SIGNAL
+    description: "Profile-level synthetic signal representing a combination of multiple underlying signals."
+    evidence_examples:
+      - "同时命中 SECURITY_BOUNDARY 和 BUILD_CHAIN"
+      - "BUG_RISK + BUILD_CHAIN in one change set"
+    default_risk_floor: "R3"
+
