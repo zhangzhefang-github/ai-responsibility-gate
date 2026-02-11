@@ -1,5 +1,11 @@
 # AI Responsibility Gate: Phase E One-Pager
 
+---
+
+**🌐 Language / 语言**: [English](PHASE_E_ONEPAGER.md) | [中文](PHASE_E_ONEPAGER_CN.md)
+
+---
+
 ## Problem Statement
 
 **AI Review × AI Coding Loop Does Not Converge**
