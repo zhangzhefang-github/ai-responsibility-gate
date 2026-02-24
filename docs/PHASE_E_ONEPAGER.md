@@ -53,7 +53,7 @@ AI Reviewer → Signals → Risk Evidence → Matrix Rules → GATE DECISION
    - Round 1-2: `matrix_path="matrices/pr_loop_demo.yaml"` → ONLY_SUGGEST
    - Round 3+: `matrix_path="matrices/pr_loop_phase_e.yaml"` → ALLOW
 
-5. **Core Gate** (Single Authority, Unchanged)
+5. **Core Gate** (Single Authority, Unchanged in Phase E)
    - **Only** component that creates Decision enum
    - Accepts `matrix_path` parameter (existing API)
    - Tighten-only enforcement (no relax possible)
@@ -105,11 +105,11 @@ Round 1: Matrix=pr_loop_demo.yaml, Signals=[SECURITY_BOUNDARY, BUILD_CHAIN], Ris
 | Invariant | How It's Enforced |
 |-----------|-------------------|
 | **Single Decision Authority** | Only `gate.py` can create Decision enum |
-| **Tighten-Only** | `evaluate_loop_guard()` changes ignored if relax attempted |
+| **Tighten-Only** | `evaluate_loop_guard()` and overlays are enforced as tighten-only |
 | **Repo-Agnostic** | Core doesn't know PR/GitHub concepts |
 | **Deterministic** | Fixed seeds → reproducible behavior |
 | **Auditable** | All rules in YAML, trace logging available |
-| **No Core Mods** | All policy in examples/ layer, uses existing `matrix_path` parameter |
+| **No Core Mods (Phase E scope)** | For Phase E demo, all policy lives in examples/ layer and uses existing `matrix_path` parameter; later responsibility phases MAY evolve `gate.py` while keeping these invariants |
 
 ---
 
