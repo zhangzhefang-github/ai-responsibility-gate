@@ -124,10 +124,12 @@ Gate 并发采集 Evidence (async gather, 80ms timeout)
     ├─ Risk (risk_level, risk_score, dimensions, rules_hit)
     └─ Permission (has_access, reason_code)
     ↓
-Matrix 查表 (v0.1/v0.2)
+Stage 2: Type Upgrade Rules（from Matrix config）
+    └─ type_upgrade_rules (Information → EntitlementDecision)
+    ↓
+Stage 3: Matrix 查表 (v0.1/v0.2)
     ├─ defaults (by responsibility_type)
     ├─ rules (match: risk_level + action_types)
-    ├─ type_upgrade_rules (Information → EntitlementDecision)
     ├─ missing_evidence_policy (tighten/hitl)
     └─ conflict_resolution (risk_high_overrides_permission_ok)
     ↓
@@ -137,9 +139,13 @@ Gate 决策聚合 (priority order)
     3. Matrix rule match
     4. Missing evidence → policy-based tighten/hitl
     5. Conflict resolution → R3 + permission ok → HITL
-    6. Low confidence → tighten (1 step)
-    7. Routing weak signal → tighten (max 1 step, never DENY)
-    8. Postcheck → tighten if critical issues
+    6. LoopGuard → tighten-only, 忽略任何放松尝试
+    7. Timeout Guard overlays（按 risk tier 和策略版本）
+       - _hitl_suggested → 至少 HITL（tighten-only）
+       - _hitl_suggested && _degradation_suggested → 允许 DENY（部分 tier）
+    8. Routing weak signal → tighten (max 1 step, never DENY)
+    9. Low confidence → tighten (1 step)
+    10. Postcheck → tighten if critical issues
     ↓
 DecisionResponse + Explanation + PolicyInfo
 ```
