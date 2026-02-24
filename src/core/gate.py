@@ -7,6 +7,7 @@ mapped to Decision enum only in this module.
 """
 import uuid
 import time
+import os
 from typing import List
 from .models import (
     Decision, DecisionRequest, DecisionResponse, GateContext,
@@ -27,6 +28,68 @@ from .loop_guard import parse_loop_state, evaluate_loop_guard
 
 # Decision strict order (only used for mapping intermediate states to Decision enum)
 STRICT_ORDER = ["ALLOW", "ONLY_SUGGEST", "HITL", "DENY"]
+
+# Internal reason codes for timeout guard overlays (explain-only, non-decisional).
+TIMEOUT_GUARD_REASON_NONE = "NONE"
+TIMEOUT_GUARD_REASON_HITL_SUGGESTED = "HITL_SUGGESTED"
+TIMEOUT_GUARD_REASON_DEGRADED_ONLY = "DEGRADED_ONLY"
+TIMEOUT_GUARD_REASON_HITL_AND_DEGRADED = "HITL_AND_DEGRADED"
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    """
+    Read a boolean-ish environment variable with a safe default.
+
+    Accepts: "1", "true", "yes", "y", "on" (case-insensitive) as True.
+    Any other explicit value is treated as False.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def _normalize_risk_tier(value: str) -> str:
+    """
+    Normalize a risk tier string into one of the supported tiers.
+
+    Supported tiers: R0, R1, R2, R3. Any unknown value falls back to R2.
+    """
+    allowed = {"R0", "R1", "R2", "R3"}
+    if not isinstance(value, str):
+        return "R2"
+    upper = value.strip().upper()
+    if upper in allowed:
+        return upper
+    return "R2"
+
+
+def _resolve_risk_tier(req: DecisionRequest) -> tuple[str, str]:
+    """
+    Resolve effective risk tier for timeout guard overlays.
+
+    Priority (highest to lowest):
+    1. Request field (if present, future-compatible)
+    2. Environment variable AI_GATE_RISK_TIER
+    3. Default "R2"
+
+    Returns (tier, source) where source is one of {"req", "env", "default"}.
+    """
+    # Future-compatible hook: if DecisionRequest ever gains a `risk_tier` field,
+    # prefer it here without changing helpers or Evidence layer.
+    tier_from_req = getattr(req, "risk_tier", None)
+    if isinstance(tier_from_req, str) and tier_from_req.strip():
+        normalized = _normalize_risk_tier(tier_from_req)
+        source = "req" if normalized == tier_from_req.strip().upper() else "default"
+        return normalized, source
+
+    env_val = os.getenv("AI_GATE_RISK_TIER")
+    if env_val:
+        normalized = _normalize_risk_tier(env_val)
+        source = "env" if normalized == env_val.strip().upper() else "default"
+        return normalized, source
+
+    return "R2", "default"
 
 def _config_str_to_index(decision_str: str) -> int:
     """Convert config string (from matrix YAML) to index. Only conversion point."""
@@ -91,6 +154,13 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
         trace.append(f"[TRACE] User Input: \"{req.text}\"")
         if req.context:
             trace.append(f"[TRACE] Context: {req.context}")
+        timeout_guard_policy_version = os.getenv(
+            "AI_GATE_TIMEOUT_GUARD_POLICY_VERSION",
+            "v1",
+        )
+        trace.append(
+            f"[TRACE] timeout_guard_policy_version={timeout_guard_policy_version}"
+        )
 
     # Resolve matrix path based on optional profile (Phase D: profile → matrix L1)
     profile = None
@@ -132,6 +202,13 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
 
     # Stage 1: Collect all evidence
     evidence = await collect_all_evidence(ctx, trace if req.verbose else [])
+
+    # Optional timeout guard meta (Phase 3.x: explain-only → decision overlay).
+    meta = {}
+    if isinstance(evidence, dict) and "_meta" in evidence:
+        raw_meta = evidence.get("_meta") or {}
+        if isinstance(raw_meta, dict):
+            meta = raw_meta
 
     # Extract key data from evidence
     tool_data = evidence["tool"].data if evidence["tool"].available else {}
@@ -200,6 +277,107 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
     else:
         decision_index = new_decision_index
 
+    # Stage 5.6: Timeout guard-based HITL overlay (tighten-only, explain-driven).
+    # Stage 5.7: Timeout guard-based DENY overlay (tighten-only, explain-driven, fail-closed).
+    # NOTE: Explain-only meta remains non-decisional; overlays are applied here in gate.py only.
+    timeout_guard_enabled = _env_flag("AI_GATE_EVIDENCE_TIMEOUT_GUARD_ENABLED", True)
+    hitl_overlay_enabled = _env_flag("AI_GATE_TIMEOUT_GUARD_HITL_OVERLAY_ENABLED", True)
+    deny_overlay_enabled = _env_flag("AI_GATE_TIMEOUT_GUARD_DENY_OVERLAY_ENABLED", True)
+
+    # Explain-only reason code for timeout guard overlays (Task 4.3).
+    timeout_guard_reason = TIMEOUT_GUARD_REASON_NONE
+
+    if meta and timeout_guard_enabled:
+        # Resolve risk tier for this decision (gate-level only; helpers remain unaware).
+        risk_tier, risk_source = _resolve_risk_tier(req)
+        if req.verbose:
+            trace.append(f"[TRACE] risk_tier={risk_tier} (source={risk_source})")
+            policy_version = os.getenv("AI_GATE_TIMEOUT_GUARD_POLICY_VERSION", "v1")
+            trace.append(
+                f"[TRACE] timeout_guard_policy={policy_version} (risk_tier={risk_tier})"
+            )
+
+        # Tier-specific overlay allowances (tighten-only, never relax).
+        tier_overlays = {
+            "R0": {
+                "allow_hitl_overlay": False,
+                "allow_deny_overlay": False,
+                "allow_degraded_to_hitl": False,
+            },
+            "R1": {
+                "allow_hitl_overlay": True,
+                "allow_deny_overlay": False,
+                "allow_degraded_to_hitl": False,
+            },
+            "R2": {
+                "allow_hitl_overlay": True,
+                "allow_deny_overlay": True,
+                "allow_degraded_to_hitl": False,
+            },
+            "R3": {
+                "allow_hitl_overlay": True,
+                "allow_deny_overlay": True,
+                "allow_degraded_to_hitl": True,
+            },
+        }
+        tier_cfg = tier_overlays.get(risk_tier, tier_overlays["R2"])
+
+        allow_hitl_overlay = tier_cfg["allow_hitl_overlay"]
+        allow_deny_overlay = tier_cfg["allow_deny_overlay"]
+        allow_degraded_to_hitl = tier_cfg["allow_degraded_to_hitl"]
+
+        # Effective overlays must respect both global feature flags and tier policy.
+        effective_hitl_overlay_enabled = hitl_overlay_enabled and allow_hitl_overlay
+        # DENY overlay is only possible when HITL overlay is also enabled by both
+        # config and tier policy, to avoid ALLOW → DENY without HITL escalations.
+        effective_deny_overlay_enabled = (
+            deny_overlay_enabled and allow_deny_overlay and effective_hitl_overlay_enabled
+        )
+
+        hitl_index = STRICT_ORDER.index("HITL")
+        deny_index = STRICT_ORDER.index("DENY")
+        hitl_suggested = bool(meta.get("_hitl_suggested"))
+        degradation_suggested = bool(meta.get("_degradation_suggested"))
+
+        # 5.6 HITL overlay: only tighten to at least HITL when _hitl_suggested is True.
+        if effective_hitl_overlay_enabled and hitl_suggested and decision_index < hitl_index:
+            decision_index = hitl_index
+            timeout_guard_reason = TIMEOUT_GUARD_REASON_HITL_SUGGESTED
+
+        # 5.6.b Degradation-only overlay (R3+ only): upgrade degraded-only to HITL.
+        if (
+            effective_hitl_overlay_enabled
+            and allow_degraded_to_hitl
+            and not hitl_suggested
+            and degradation_suggested
+            and decision_index < hitl_index
+        ):
+            decision_index = hitl_index
+            timeout_guard_reason = TIMEOUT_GUARD_REASON_DEGRADED_ONLY
+
+        # 5.7 DENY overlay (Task 3.3/4.0/4.2, behind config + tier policy):
+        # Fail-closed when BOTH hitl_suggested and degradation_suggested are True.
+        # This is a tighten-only overlay: only upgrades ALLOW/HITL → DENY, never relaxes.
+        deny_condition = (
+            effective_deny_overlay_enabled
+            and hitl_suggested
+            and degradation_suggested
+        )
+        if deny_condition and decision_index < deny_index:
+            decision_index = deny_index
+            timeout_guard_reason = TIMEOUT_GUARD_REASON_HITL_AND_DEGRADED
+            if req.verbose:
+                trace.append("[TRACE] gate_decision=DENY (timeout_guard: hitl+degraded)")
+    elif meta and req.verbose:
+        # Optional trace-only explanation when overlays are disabled via config.
+        if not timeout_guard_enabled:
+            trace.append("[TRACE] timeout_guard_overlay: disabled (feature flag off)")
+        else:
+            if not hitl_overlay_enabled:
+                trace.append("[TRACE] timeout_guard_overlay: HITL overlay disabled")
+            if not deny_overlay_enabled:
+                trace.append("[TRACE] timeout_guard_overlay: DENY overlay disabled")
+
     # Map intermediate state to Decision enum (ONLY place where Decision is created)
     decision = _map_index_to_decision(decision_index)
     decision_str = STRICT_ORDER[decision_index]
@@ -209,6 +387,9 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
 
     evidence_used = []
     for key, ev in evidence.items():
+        # Skip aggregate meta entries such as "_meta".
+        if key == "_meta":
+            continue
         if ev.available:
             evidence_used.append(key)
 
@@ -244,6 +425,21 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
         trace.append(f"[TRACE]   - decision: {decision_str}")
         trace.append(f"[TRACE]   - primary_reason: {primary_reason}")
         trace.append(f"[TRACE]   - suggested_action: {suggested_action}")
+        if meta:
+            degradation_suggested = bool(meta.get("_degradation_suggested"))
+            hitl_suggested = bool(meta.get("_hitl_suggested"))
+            if hitl_suggested:
+                trace.append(
+                    "[TRACE]   - timeout_guard: HITL suggested "
+                    "(hitl_suggested=True)"
+                )
+            if degradation_suggested:
+                trace.append(
+                    "[TRACE]   - timeout_guard: degraded "
+                    "(degradation_suggested=True)"
+                )
+        if timeout_guard_reason != TIMEOUT_GUARD_REASON_NONE:
+            trace.append(f"[TRACE]   - timeout_guard_reason={timeout_guard_reason}")
 
     # Apply postcheck tightening (if needed)
     if not pc_result.passed:

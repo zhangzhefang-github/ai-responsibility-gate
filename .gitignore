@@ -1,0 +1,15 @@
+# IDE / local tools
+.cursor/
+.claude/
+.trae/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+.eggs/
+
+# Optional: uncomment if evidence_timeouts is local-only
+# config/evidence_timeouts.yaml
