@@ -95,7 +95,10 @@ Phase E 是一套**治理演示（Governance Demonstration）**，证明 3 件�
 ### 证明 3：震荡不失控
 即使 AI 自嗨挑刺，系统也会在 `max_rounds` 或高风险时终止。
 
-**硬约束**：✅ 不修改 `src/core/*`、✅ 不修改 `src/evidence/*`
+**硬约束（仅限 Phase E 演示范围）**：
+- ✅ 不修改 `src/core/*`
+- ✅ 不修改 `src/evidence/*`
+- 📝 说明：这里的 “no core mods” 只约束 Phase E demo 本身，用来证明 **只靠 Matrix / examples 层就能控制收敛**；后续责任阶段（如 timeout guard 任务 2.7–4.3）可以在保持「单一裁决源 / tighten‑only / 域无关」等不变量的前提下，正常演进 `src/core/*` 实现。
 
 ---
 
