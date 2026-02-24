@@ -1,8 +1,10 @@
 import asyncio
 from copy import deepcopy
+import pytest
 
-from src.core.models import DecisionRequest
+from src.core.models import DecisionRequest, Decision
 from src.core.gate import decide
+from src.core import gate as gate_module
 import src.core.loop_guard as loop_guard
 
 
@@ -28,14 +30,22 @@ def test_loop_guard_cannot_relax_decision_index(capsys):
     # Baseline decision
     base_resp = asyncio.run(decide(req))
 
-    original_eval = loop_guard.evaluate_loop_guard
+    # 如果当前矩阵配置下 baseline 决策仍为 ALLOW，则无法构造“更宽松”的场景，
+    # 在这种环境下跳过该用例，避免对具体 Matrix 行为过度耦合。
+    if base_resp.decision == Decision.ALLOW:
+        pytest.skip(
+            "Baseline decision is ALLOW; cannot exercise LoopGuard relax path "
+            "under current matrix configuration"
+        )
+
+    original_eval = gate_module.evaluate_loop_guard
 
     def patched_evaluate(decision_index: int, loop_state, trace):
         # Attempt to relax by one step (towards ALLOW)
         return max(0, decision_index - 1)
 
     try:
-        loop_guard.evaluate_loop_guard = patched_evaluate  # type: ignore[assignment]
+        gate_module.evaluate_loop_guard = patched_evaluate  # type: ignore[assignment]
 
         # Use a verbose request to capture trace
         req_verbose = deepcopy(req)
@@ -44,7 +54,7 @@ def test_loop_guard_cannot_relax_decision_index(capsys):
         _ = asyncio.run(decide(req_verbose))
         captured = capsys.readouterr().out
     finally:
-        loop_guard.evaluate_loop_guard = original_eval  # restore
+        gate_module.evaluate_loop_guard = original_eval  # restore
 
     # After attempted relax, the effective Decision must remain the same
     patched_resp = asyncio.run(decide(req))

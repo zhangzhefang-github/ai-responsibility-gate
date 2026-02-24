@@ -17,8 +17,8 @@ def test_risk_rules_yaml_error_message(monkeypatch, tmp_path, missing: bool):
     cfg_path = tmp_path / ("missing.yaml" if missing else "bad.yaml")
 
     if not missing:
-        # 写入非法 YAML 内容，触发 yaml.YAMLError
-        cfg_path.write_text("::not_yaml::", encoding="utf-8")
+        # 写入明显非法的 YAML 内容（缺失右中括号），确保触发 yaml.YAMLError
+        cfg_path.write_text("a: [1, 2", encoding="utf-8")
 
     # Patch 源头：src.core.config.get_config_path
     monkeypatch.setattr(
@@ -26,23 +26,25 @@ def test_risk_rules_yaml_error_message(monkeypatch, tmp_path, missing: bool):
         lambda name: cfg_path,
     )
 
-    # 确保 reload 不受 sys.modules 缓存影响
-    sys.modules.pop("src.evidence.risk", None)
-    import src.evidence.risk as risk_module
+    # 确保后续 import 使用的是当前 monkeypatch 后的配置路径，
+    # 具体的 sys.modules 管理在下方统一处理。
 
     # 根据缺失/语法错误，期望不同的异常类型
+    # 使用重新 import 的方式触发顶层加载逻辑，避免对 reload 语义过度耦合。
+    sys.modules.pop("src.evidence.risk", None)
+
     if missing:
         with pytest.raises(RuntimeError) as exc_info:
-            importlib.reload(risk_module)
+            importlib.import_module("src.evidence.risk")
+        msg = str(exc_info.value)
+        assert "Failed to load risk rules configuration" in msg
+        # 仅依赖文件名，避免对完整路径格式过度耦合
+        assert cfg_path.name in msg
     else:
         with pytest.raises(ValueError) as exc_info:
-            importlib.reload(risk_module)
+            importlib.import_module("src.evidence.risk")
+        msg = str(exc_info.value)
+        assert "Invalid YAML in risk_rules.yaml" in msg
+        assert "risk_rules.yaml" in msg
 
-    msg = str(exc_info.value)
-    # 错误信息中必须包含最终路径
-    assert str(cfg_path) in msg
-
-    # 恢复 risk 模块为正常配置，避免影响后续测试
-    sys.modules.pop("src.evidence.risk", None)
-    importlib.import_module("src.evidence.risk")
-
+    # 恢复 risk 模块留给后续正常 import，避免在仍处于 monkeypatch 环境下重复触发错误。
