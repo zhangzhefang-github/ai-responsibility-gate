@@ -306,16 +306,16 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 
 | 问题 | 答案 |
 |------|------|
+| 为什么要 Evidence layer？ | To decouple domain signals from governance policy。 |
+| 为什么需要 matrix？ | To externalize governance rules into versioned policy artifacts。 |
+| 为什么 Evidence 不是 policy layer？ | Evidence 层负责将 domain signal 归一为治理语义，policy 层负责根据标准化 evidence 做裁决。前者解决语义归一化，后者解决决策规则，两者职责不同。 |
+| loop_state 为什么不算业务规则？ | loop_state 只作为 routing context 决定选用哪套矩阵，不直接表达 domain 业务语义；具体决策规则仍由矩阵中的 policy 定义。 |
+| 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 将 domain 原生风险映射到统一的 risk_level scale（R0–R3），进入 Gate 前已完成归一化。 |
+| 为什么不用 OPA？ | OPA focuses on authorization policy；本系统 governs agent behavior loops，职责不同。 |
 | 为什么不直接写规则？ | 规则数量会增长，但复杂度应该限制在 policy 层，而不是 core。 |
 | 为什么要 replay？ | Replay 支持治理策略测试与回归验证，不干扰线上 agent；相当于 governance CI。 |
 | 未来怎么扩展？ | 新的 PR 工具链只需要 adapter。Gate core 不变。 |
 | 是否只支持 PR？ | 否。Permission domain 已验证（2/2 通过），Gate 核心未改，多 domain 扩展路径成立。 |
-| 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 将 domain 原生风险映射到统一的 risk_level scale（R0–R3），进入 Gate 前已完成归一化。 |
-| 为什么 Evidence 不是 policy layer？ | Evidence 层负责将 domain signal 归一为治理语义，policy 层负责根据标准化 evidence 做裁决。前者解决语义归一化，后者解决决策规则，两者职责不同。 |
-| loop_state 为什么不算业务规则？ | loop_state 只作为 routing context 决定选用哪套矩阵，不直接表达 domain 业务语义；具体决策规则仍由矩阵中的 policy 定义。 |
-| 为什么要 Evidence layer？ | To decouple domain signals from governance policy。 |
-| 为什么不用 OPA？ | OPA focuses on authorization policy；本系统 governs agent behavior loops，职责不同。 |
-| 为什么需要 matrix？ | To externalize governance rules into versioned policy artifacts。 |
 | Matrix 版本的平滑切换怎么做？ | Matrix 为 versioned YAML，存于 Git 或配置中心。通过 Decision Request 中的版本标签实现灰度切换，Replay 机制确保新版本矩阵不会导致存量 Case 逻辑崩坏。 |
 | 性能开销如何？会成为瓶颈吗？ | Gate 为轻量级 pipeline，不涉及复杂推理（推理已在 Evidence Provider 阶段完成），核心仅做矩阵匹配，延迟在毫秒级。 |
 
