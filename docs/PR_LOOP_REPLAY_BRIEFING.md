@@ -28,11 +28,11 @@ flowchart TB
     subgraph Gate [AI Responsibility Gate]
         direction TB
         GateInput[Input]
-        Pipeline["signal → evidence → matrix → decision"]
         Routing["loop-aware matrix routing"]
-        GateInput --> Pipeline --> Routing
-        Routing -->|"nit_only_streak ≥ 3"| Conv["converged matrix → ALLOW"]
-        Routing -->|"round_index ≥ 5"| Churn["churn matrix → HITL"]
+        Pipeline["signal → evidence → matrix → decision"]
+        GateInput --> Routing --> Pipeline
+        Routing -->|"nit_only_streak ≥ 3"| Conv["converged matrix"]
+        Routing -->|"round_index ≥ 5"| Churn["churn matrix"]
     end
 
     Pipeline --> Decision[Decision + Trace]

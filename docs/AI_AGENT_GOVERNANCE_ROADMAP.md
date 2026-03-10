@@ -6,14 +6,14 @@
 
 ## 1. 项目定位
 
-**AI Responsibility Gate** 是 **AI Agent Governance Control Plane**（治理控制面）。
+**AI Responsibility Gate** 是 **AI Agent Governance Control Plane**（治理控制面）：集中决策、策略外置，可类比 Kubernetes admission control、OPA-style policy engine。
 
 核心问题：在给定上下文中，是否允许某个 agent 执行某个动作？
 
 - Loop / churn → 是否允许继续自动循环
-- Permission escalation → 是否允许该 scope
+- Scope request → 是否允许该 scope
 - Tool misuse → 是否允许该 tool call
-- Hallucinated actions → 是否信任该动作声明
+- Hallucinated actions → 是否允许采信该动作声明
 
 ---
 
