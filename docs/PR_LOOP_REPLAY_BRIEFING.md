@@ -1,49 +1,42 @@
 # PR Loop Replay 技术汇报
 
+**AI Responsibility Gate – PR Loop Governance Architecture**
+
 > 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 职责边界 → 规则控制 → 结果表 → 讲稿 → Q&A。
 
 ---
 
 ## 1. 一页架构总结（Page 1）
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    PR Multi-Agent Loop                   │
-│                                                          │
-│  Author / AI Coding   Reviewer Bot   CI   Maintainer     │
-│        │                  │          │         │          │
-└────────┴──────────────────┴──────────┴─────────┴──────────┘
-                         │
-                         ▼
-                PR Loop Case JSON
-                         │
-                         ▼
-              Replay Adapter Layer
-        (PR domain → project governance signals)
-                         │
-                         ▼
-┌──────────────────────────────────────────────────────────┐
-│                AI Responsibility Gate                    │
-│                                                          │
-│  signal → evidence → matrix → decision                   │
-│                                                          │
-│  + loop-aware matrix routing                             │
-│      ├─ nit_only_streak ≥ 3  → converged matrix → ALLOW   │
-│      └─ round_index ≥ 5      → churn matrix     → HITL    │
-│                                                          │
-│  Gate = single decision authority                        │
-└──────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-                 Decision + Trace
-            (ALLOW / ONLY_SUGGEST / HITL)
+```mermaid
+flowchart TB
+    subgraph Sources [PR Multi-Agent Loop]
+        Author[Author / AI Coding]
+        Reviewer[Reviewer Bot]
+        CI[CI]
+        Maintainer[Maintainer]
+    end
 
-Offline Validation
-────────────────────────────────
-Replay Cases
-• case_001: real OpenClaw PR
-• case_002: nit churn mechanism
-Result: 8 / 8 rounds correct
+    Sources --> CaseJSON[PR Loop Case JSON]
+    CaseJSON --> Adapter[Replay Adapter]
+    Adapter -->|"PR domain → project signals"| Pipeline
+
+    subgraph Gate [AI Responsibility Gate]
+        direction TB
+        Pipeline["signal → evidence → matrix → decision"]
+        Routing["loop-aware matrix routing"]
+        Pipeline --> Routing
+        Routing -->|"nit_only_streak ≥ 3"| Conv["converged matrix → ALLOW"]
+        Routing -->|"round_index ≥ 5"| Churn["churn matrix → HITL"]
+    end
+
+    Pipeline --> Decision[Decision + Trace]
+
+    subgraph Validation [Offline Validation]
+        V1["case_001: real OpenClaw PR"]
+        V2["case_002: nit churn mechanism"]
+        V3["Result: 8/8 rounds correct"]
+    end
 ```
 
 **五关键信息点：**
@@ -71,20 +64,17 @@ Result: 8 / 8 rounds correct
 
 ```mermaid
 flowchart LR
-    subgraph sources [PR 域数据源]
+    subgraph Sources [PR Multi-Agent Loop]
         PR[PR]
         Reviewer[Reviewer]
         CI[CI]
         Maintainer[Maintainer]
     end
 
-    sources --> CaseJSON[PR Loop Case JSON]
-
+    Sources --> CaseJSON[PR Loop Case JSON]
     CaseJSON --> Adapter[Replay Adapter]
     CaseJSON -->|loop_state| Gate
-
-    Adapter --> Gate[AI Responsibility Gate<br/>loop_state → matrix routing]
-
+    Adapter --> Gate[AI Responsibility Gate]
     Gate --> Output[Decision + Trace]
 ```
 
@@ -164,8 +154,8 @@ flowchart LR
 
 > 这次我增加了一个 loop-aware matrix routing，让系统根据 loop_state 自动切换治理矩阵。比如：
 >
-> - nit_only_streak >= 3 时，切到 converged matrix，决策可以变成 ALLOW
-> - round_index >= 5 时，切到 churn matrix，决策升级为 HITL
+> - nit_only_streak ≥ 3 时，切到 converged matrix，决策可以变成 ALLOW
+> - round_index ≥ 5 时，切到 churn matrix，决策升级为 HITL
 
 **验证：**
 
