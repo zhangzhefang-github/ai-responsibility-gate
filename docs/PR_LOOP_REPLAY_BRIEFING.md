@@ -187,7 +187,18 @@ flowchart LR
 
 ## 8. 参考链接
 
+### 外部
+
 | 资源 | 链接 |
 |------|------|
 | case_001 真实 PR | [openclaw/openclaw#27286](https://github.com/openclaw/openclaw/pull/27286) |
-| case 文件 | `cases/pr_loop_real/*.json` |
+
+### 本仓库关联文档
+
+| 文档 | 说明 |
+|------|------|
+| [PR_LOOP_REAL_CASE_JSON_SCHEMA.md](PR_LOOP_REAL_CASE_JSON_SCHEMA.md) | Case 格式定义 |
+| [PR_LOOP_REAL_CASE_ADAPTER_DESIGN.md](PR_LOOP_REAL_CASE_ADAPTER_DESIGN.md) | Adapter 设计（PR 信号 → 项目信号） |
+| [LOOP_GOVERNANCE_CORE_MIGRATION_DESIGN.md](LOOP_GOVERNANCE_CORE_MIGRATION_DESIGN.md) | Loop 策略与 matrix routing 设计 |
+| [case_001](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/cases/pr_loop_real/case_001_openclaw_remote_token_fallback.json) · [case_002](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/cases/pr_loop_real/case_002_nit_churn_demo.json) | Replay case 文件 |
+| [pr_loop_demo.yaml](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/matrices/pr_loop_demo.yaml) | Loop policy 配置 |
