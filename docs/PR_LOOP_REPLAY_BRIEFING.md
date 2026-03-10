@@ -88,19 +88,19 @@ flowchart LR
 
 **流程说明：**
 
-| 阶段 | 说明 |
-|------|------|
-| PR / Reviewer / CI / Maintainer | 真实 PR 场景中的多 agent 参与方 |
-| Case JSON | `cases/pr_loop_real/*.json`，离线结构化输入 |
-| Replay Adapter | PR 域信号 → 项目信号映射，round → DecisionRequest |
-| AI Responsibility Gate | loop-aware matrix routing，根据 loop_state 切换矩阵 |
-| Decision + Trace | 决策（ALLOW / ONLY_SUGGEST / HITL）及 effective_matrix 等 |
+| # | 阶段 | 说明 |
+|---|------|------|
+| 1 | PR / Reviewer / CI / Maintainer | 真实 PR 场景中的多 agent 参与方 |
+| 2 | Case JSON | `cases/pr_loop_real/*.json`，离线结构化输入 |
+| 3 | Replay Adapter | PR 域信号 → 项目信号映射，round → DecisionRequest |
+| 4 | AI Responsibility Gate | loop-aware matrix routing，根据 loop_state 切换矩阵 |
+| 5 | Decision + Trace | 决策（ALLOW / ONLY_SUGGEST / HITL）及 effective_matrix 等 |
 
 **loop_state 来源：** loop_state 由 replay/runtime context 维护，作为 decision request 的一部分传入 Gate。
 Replay 场景下由 case JSON 的 `rounds[].loop_state` 提供；生产环境由 agent 运行时维护并传入。
 Gate 为 Stateless：不存储 PR 状态，由 Replay 或 Runtime 提供「真相」，降低 Gate 维护成本与分布式一致性复杂度。
 
-**Trust 边界（新增）：** Replay 场景：loop_state 来自 case JSON，可视为可信输入。Production 场景：loop_state 由 agent runtime 提供，若 runtime 不可信，应通过 runtime 层或 observability / audit 系统进行状态校验。目的：避免读者误解 Gate 在生产环境中直接信任 runtime。
+**信任边界（新增）：** Replay 场景：loop_state 来自 case JSON，可视为可信输入。Production 场景：loop_state 由 agent runtime 提供，若 runtime 不可信，应通过 runtime 层或 observability / audit 系统进行状态校验。目的：避免读者误解 Gate 在生产环境中直接信任 runtime。
 
 **loop_state 结构：** `loop_state = { round_index, nit_only_streak }`。
 
