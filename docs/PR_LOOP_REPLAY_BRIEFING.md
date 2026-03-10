@@ -96,7 +96,9 @@ flowchart LR
 
 **loop_state 来源：** loop_state 由 replay/runtime context 维护，作为 decision request 的一部分传入 Gate。Replay 场景下由 case JSON 的 `rounds[].loop_state` 提供；生产环境由 agent 运行时维护并传入。Gate 为 Stateless：不存储 PR 状态，由 Replay 或 Runtime 提供「真相」，降低 Gate 维护成本与分布式一致性复杂度。
 
-**loop_state 结构：** `loop_state = { round_index, nit_only_streak }`。`round_index` 表示当前 review 轮次；`nit_only_streak` 表示连续低价值 review 轮次数。二者构成 loop routing 的数据基础。
+**loop_state 结构：** `loop_state = { round_index, nit_only_streak }`。
+
+`round_index` 表示当前 review 轮次；`nit_only_streak` 表示连续低价值 review 轮次数。二者构成 loop routing 的数据基础。
 
 ---
 
@@ -205,7 +207,9 @@ verifiability 字段可用于矩阵决策：矩阵可据此决定直接采信 Ag
 
 Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流（governance CI）。策略变更后通过 replay 回归验证，确保决策行为符合预期。
 
-**loop_state 格式：** `(round_index, nit_only_streak)`。例：(3, 3) = 第 4 轮且连续 3 轮 nit-only；(5, 0) = 第 6 轮（case_002 用于 churn 教学，非连续循环）。
+**loop_state 格式：** `(round_index, nit_only_streak)`。
+
+例：(3, 3) = 第 4 轮且连续 3 轮 nit-only；(5, 0) = 第 6 轮（case_002 用于 churn 教学，非连续循环）。
 
 ### case_001：真实案例（[OpenClaw PR #27286](https://github.com/openclaw/openclaw/pull/27286) — gateway remote token fallback）
 
