@@ -306,18 +306,19 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 
 | 问题 | 答案 |
 |------|------|
-| 为什么要 Evidence layer？ | To decouple domain signals from governance policy。 |
-| 为什么需要 matrix？ | To externalize governance rules into versioned policy artifacts。 |
-| 为什么 Evidence 不是 policy layer？ | Evidence 层负责将 domain signal 归一为治理语义，policy 层负责根据标准化 evidence 做裁决。前者解决语义归一化，后者解决决策规则，两者职责不同。 |
-| loop_state 为什么不算业务规则？ | loop_state 只作为 routing context 决定选用哪套矩阵，不直接表达 domain 业务语义；具体决策规则仍由矩阵中的 policy 定义。 |
-| 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 将 domain 原生风险映射到统一的 risk_level scale（R0–R3），进入 Gate 前已完成归一化。 |
-| 为什么不用 OPA？ | OPA focuses on authorization policy；本系统 governs agent behavior loops，职责不同。 |
-| 为什么不直接写规则？ | 规则数量会增长，但复杂度应该限制在 policy 层，而不是 core。 |
-| 为什么要 replay？ | Replay 支持治理策略测试与回归验证，不干扰线上 agent；相当于 governance CI。 |
-| 未来怎么扩展？ | 新的 PR 工具链只需要 adapter。Gate core 不变。 |
-| 是否只支持 PR？ | 否。Permission domain 已验证（2/2 通过），Gate 核心未改，多 domain 扩展路径成立。 |
-| Matrix 版本的平滑切换怎么做？ | Matrix 为 versioned YAML，存于 Git 或配置中心。通过 Decision Request 中的版本标签实现灰度切换，Replay 机制确保新版本矩阵不会导致存量 Case 逻辑崩坏。 |
-| 性能开销如何？会成为瓶颈吗？ | Gate 为轻量级 pipeline，不涉及复杂推理（推理已在 Evidence Provider 阶段完成），核心仅做矩阵匹配，延迟在毫秒级。 |
+| 为什么要 Evidence layer？ | 将各 domain 原始 signal 归一为治理语义（risk_level、action_type 等）。若 Gate 直接消费 signal，每增 domain 即需改 Gate，核心膨胀。Evidence 层完成 domain→governance 转换，Gate 只依赖稳定 schema。 |
+| 为什么需要 matrix？ | 将治理规则从代码抽离为配置。规则写代码则每次策略变更需改代码、重发布。Matrix 以 YAML 配置、可版本管理、可 replay 回归，策略独立演进而不动 Gate 核心。 |
+| 为什么 Evidence 不是 policy layer？ | Evidence 解决语义归一化（signal→risk_level 等）；Policy（matrix）解决决策规则（根据 evidence 裁决）。职责不同。 |
+| loop_state 为什么不算业务规则？ | loop_state 只描述交互状态（round_index、nit_only_streak），作为 routing context 选矩阵，不表达 domain 语义。业务规则在 matrix 中定义。 |
+| 为什么需要 routing，而不是把 loop_state 写进 matrix 条件？ | loop_state 决定「用哪套矩阵」，矩阵内规则决定「evidence 如何裁决」。若把 loop_state 写进矩阵条件，每套策略需重复定义大量条件，矩阵膨胀；routing 将「选策略」与「执行策略」分离，矩阵数量有限。 |
+| 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 按统一规范映射到 R0–R3，进入 Gate 前已归一化。 |
+| 为什么不用 OPA？ | OPA 解决 authorization（谁访问什么资源）；本系统解决 agent 行为治理（loop churn、tool 风险、是否 HITL）。关注点不同。 |
+| 为什么不直接写规则？ | 规则写代码则 if/else 随场景膨胀。Matrix 将规则限制在 policy 层，Gate core 只执行 pipeline，核心稳定、策略可独立演进。 |
+| 为什么要 replay？ | 策略变更后，用历史 case 离线重跑，校验决策是否变化。相当于 governance CI，确保策略演进不破坏已有行为。 |
+| 未来怎么扩展？ | 新 domain 只需 adapter + EvidenceProvider，Gate core 不变。 |
+| 是否只支持 PR？ | 否。Permission domain 已验证，Gate 未改，多 domain 路径成立。 |
+| Matrix 版本的平滑切换怎么做？ | Matrix 为 versioned YAML，存 Git 或配置中心；Decision Request 可带版本标签实现灰度；Replay 做回归。 |
+| 性能开销如何？会成为瓶颈吗？ | Gate 仅做矩阵匹配，无复杂推理（推理在 Evidence Provider），延迟毫秒级。 |
 
 ---
 
