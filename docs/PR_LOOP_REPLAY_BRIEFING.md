@@ -2,7 +2,7 @@
 
 **AI Responsibility Gate – PR Loop Governance Architecture**
 
-> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 三层架构 → 职责边界 → 规则复杂度控制 → 多 domain 验证 → 结果表 → 讲稿 → Q&A。
+> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 三层架构 → 职责边界 → 规则复杂度控制 → 多 domain 验证 → 结果表 → 讲稿 → 问答。
 >
 > *建议在 GitHub 上查看以正确渲染 Mermaid 图。*
 
