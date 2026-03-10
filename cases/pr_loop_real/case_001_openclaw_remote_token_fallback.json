@@ -1,0 +1,73 @@
+{
+  "case_id": "case_001_openclaw_remote_token_fallback",
+  "description": "Real PR case from OpenClaw. A gateway token fallback fix triggered AI reviewer feedback, CI issues, and maintainer intervention.",
+  "matrix_path": "matrices/pr_loop_demo.yaml",
+  "rounds": [
+    {
+      "loop_state": {
+        "round_index": 0,
+        "nit_only_streak": 0
+      },
+      "signals": [
+        "FUNCTIONAL_CORRECTNESS",
+        "REVIEW_LOGIC_BUG",
+        "TEST_MISSING"
+      ],
+      "ci_status": "pending",
+      "maintainer_intervened": false,
+      "expected_decision": "ONLY_SUGGEST",
+      "review_comments": [
+        {
+          "source": "greptile-apps",
+          "type": "logic_bug",
+          "summary": "Fallback logic ineffective because remote is undefined in local mode."
+        },
+        {
+          "source": "greptile-apps",
+          "type": "test_gap",
+          "summary": "No tests were added for the new behavior."
+        }
+      ]
+    },
+    {
+      "loop_state": {
+        "round_index": 1,
+        "nit_only_streak": 0
+      },
+      "signals": [
+        "CI_FAILURE",
+        "FUNCTIONAL_CORRECTNESS"
+      ],
+      "ci_status": "fail",
+      "maintainer_intervened": false,
+      "expected_decision": "ONLY_SUGGEST",
+      "review_comments": [
+        {
+          "source": "author",
+          "type": "ci_followup",
+          "summary": "CI check failed and the reported error referenced something not present in the current codebase."
+        }
+      ]
+    },
+    {
+      "loop_state": {
+        "round_index": 2,
+        "nit_only_streak": 0
+      },
+      "signals": [
+        "HUMAN_OVERRIDE",
+        "MAINTAINER_INTERVENTION"
+      ],
+      "ci_status": "green",
+      "maintainer_intervened": true,
+      "expected_decision": "HITL",
+      "review_comments": [
+        {
+          "source": "maintainer",
+          "type": "override_fix",
+          "summary": "Maintainer added a follow-up commit to make the local remote-token fallback effective."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "case_id": "case_002_nit_churn_demo",
+  "description": "Synthetic teaching case for loop-aware matrix routing. Demonstrates: (1) nit_only_streak >= 3 → converged_matrix → ALLOW; (2) round_index >= max_rounds → churn_matrix → HITL. The final round uses round_index=5 directly to demonstrate churn routing (not a continuous loop). LOW_VALUE_NITS in signals currently relies on adapter fallback/default behavior (maps to UNKNOWN_SIGNAL); this does not represent full semantic modeling.",
+  "matrix_path": "matrices/pr_loop_demo.yaml",
+  "rounds": [
+    {
+      "loop_state": {
+        "round_index": 0,
+        "nit_only_streak": 0
+      },
+      "signals": ["LOW_VALUE_NITS"],
+      "ci_status": "green",
+      "maintainer_intervened": false,
+      "expected_decision": "ONLY_SUGGEST"
+    },
+    {
+      "loop_state": {
+        "round_index": 1,
+        "nit_only_streak": 1
+      },
+      "signals": ["LOW_VALUE_NITS"],
+      "ci_status": "green",
+      "maintainer_intervened": false,
+      "expected_decision": "ONLY_SUGGEST"
+    },
+    {
+      "loop_state": {
+        "round_index": 2,
+        "nit_only_streak": 2
+      },
+      "signals": ["LOW_VALUE_NITS"],
+      "ci_status": "green",
+      "maintainer_intervened": false,
+      "expected_decision": "ONLY_SUGGEST"
+    },
+    {
+      "loop_state": {
+        "round_index": 3,
+        "nit_only_streak": 3
+      },
+      "signals": ["LOW_VALUE_NITS"],
+      "ci_status": "green",
+      "maintainer_intervened": false,
+      "expected_decision": "ALLOW"
+    },
+    {
+      "loop_state": {
+        "round_index": 5,
+        "nit_only_streak": 0
+      },
+      "signals": ["LOW_VALUE_NITS"],
+      "ci_status": "green",
+      "maintainer_intervened": false,
+      "expected_decision": "HITL"
+    }
+  ]
+}

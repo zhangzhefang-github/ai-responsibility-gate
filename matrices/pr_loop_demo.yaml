@@ -29,3 +29,12 @@ conflict_resolution:
   risk_high_overrides_permission_ok: true
   r3_with_permission_action: "hitl"
 
+# Phase 1: Loop-aware matrix routing (optional)
+# Paths are repo-root-relative. When loop_state is present and conditions match,
+# core resolves effective matrix path before pipeline.
+loop_policy:
+  max_rounds: 5
+  benign_streak_threshold: 3
+  churn_matrix_path: "matrices/pr_loop_churn.yaml"
+  converged_matrix_path: "matrices/pr_loop_phase_e.yaml"
+

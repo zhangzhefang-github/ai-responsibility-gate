@@ -15,7 +15,7 @@ from .models import (
     PostcheckResult
 )
 from .classifier import classify
-from .matrix import load_matrix, resolve_matrix_path
+from .matrix import load_matrix, resolve_matrix_path, resolve_effective_matrix_path_for_loop
 from .postcheck import postcheck
 from .gate_helpers import collect_all_evidence
 from .gate_stages import (
@@ -194,6 +194,55 @@ async def decide(req: DecisionRequest, matrix_path: str = "matrices/v0.1.yaml") 
             f"[TRACE] 0. Profile → Matrix: profile={profile or 'default'}, "
             f"matrix_path={effective_matrix_path}"
         )
+
+    # Loop-aware matrix routing (Phase 1): resolve effective path from loop_policy + loop_state
+    if loop_state is not None or (req.context and isinstance(req.context, dict) and "loop_state" in req.context):
+        loop_policy_present = bool(matrix.data.get("loop_policy"))
+        if loop_state is not None and loop_policy_present:
+            prev_path = effective_matrix_path
+            policy = matrix.data.get("loop_policy") or {}
+            effective_matrix_path = resolve_effective_matrix_path_for_loop(loop_state, matrix, effective_matrix_path)
+            if effective_matrix_path != prev_path:
+                try:
+                    matrix = load_matrix(effective_matrix_path)
+                except FileNotFoundError as e:
+                    if req.verbose:
+                        trace.append(f"[TRACE] FATAL: Loop-routed matrix not found: {effective_matrix_path}")
+                        print("\n".join(trace))
+                    raise RuntimeError(
+                        f"System configuration error: Loop-routed matrix not found: {effective_matrix_path}. "
+                        f"Check loop_policy.churn_matrix_path / converged_matrix_path."
+                    ) from e
+                except ValueError as e:
+                    if req.verbose:
+                        trace.append(f"[TRACE] FATAL: Invalid loop-routed matrix: {e}")
+                        print("\n".join(trace))
+                    raise RuntimeError(
+                        f"System configuration error: Invalid loop-routed matrix {effective_matrix_path}: {e}"
+                    ) from e
+            if req.verbose:
+                reason = ""
+                if effective_matrix_path != prev_path:
+                    if policy.get("max_rounds") is not None and loop_state.round_index >= policy.get("max_rounds", 0):
+                        reason = "loop_routing_reason=churn"
+                    elif policy.get("benign_streak_threshold") is not None and loop_state.nit_only_streak >= policy.get("benign_streak_threshold", 0):
+                        reason = "loop_routing_reason=converged"
+                suffix = f", {reason}" if reason else " (unchanged)"
+                trace.append(
+                    f"[TRACE] 0.1 Loop-Aware Matrix: loop_state=round_index={loop_state.round_index},nit_only_streak={loop_state.nit_only_streak}, "
+                    f"loop_policy_present=True, effective_matrix_path={effective_matrix_path}{suffix}"
+                )
+        elif req.verbose:
+            if loop_state is None:
+                trace.append(
+                    f"[TRACE] 0.1 Loop-Aware Matrix: loop_state_parse_failed=True, "
+                    f"effective_matrix_path={effective_matrix_path} (fallback)"
+                )
+            else:
+                trace.append(
+                    f"[TRACE] 0.1 Loop-Aware Matrix: loop_state=round_index={loop_state.round_index},nit_only_streak={loop_state.nit_only_streak}, "
+                    f"loop_policy_present=False, effective_matrix_path={effective_matrix_path} (unchanged)"
+                )
 
     classifier_result = await classify(ctx)
 

@@ -1,6 +1,8 @@
 import yaml
 from typing import Optional, Dict
+
 from .config import get_matrix_path
+from .loop_guard import LoopState
 
 class Matrix:
     def __init__(self, path: str):
@@ -79,3 +81,40 @@ def resolve_matrix_path(profile: Optional[str], default_path: str) -> str:
     if not profile:
         return default_path
     return _PROFILE_MATRIX_MAP.get(profile, default_path)
+
+
+def resolve_effective_matrix_path_for_loop(
+    loop_state: Optional[LoopState],
+    matrix: Matrix,
+    base_path: str,
+) -> str:
+    """
+    Pure function: resolve effective matrix path from loop_policy + loop_state.
+
+    Rules (priority order):
+    1. If loop_state is None or matrix has no loop_policy → return base_path
+    2. If round_index >= max_rounds and churn_matrix_path present → return churn_matrix_path
+    3. If nit_only_streak >= benign_streak_threshold and converged_matrix_path present → return converged_matrix_path
+    4. Else → return base_path
+
+    Paths in loop_policy are repo-root-relative (same as get_matrix_path).
+    No side effects, no I/O, no trace/log.
+    """
+    if loop_state is None:
+        return base_path
+
+    policy = matrix.data.get("loop_policy")
+    if not policy or not isinstance(policy, dict):
+        return base_path
+
+    max_rounds = policy.get("max_rounds")
+    churn_path = policy.get("churn_matrix_path")
+    if max_rounds is not None and churn_path and loop_state.round_index >= max_rounds:
+        return churn_path
+
+    threshold = policy.get("benign_streak_threshold")
+    converged_path = policy.get("converged_matrix_path")
+    if threshold is not None and converged_path and loop_state.nit_only_streak >= threshold:
+        return converged_path
+
+    return base_path

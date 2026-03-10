@@ -16,6 +16,7 @@ from ..evidence.risk import collect as collect_risk
 from ..evidence.permission import collect as collect_permission
 from ..evidence.tool import collect as collect_tool
 from ..evidence.routing import collect as collect_routing
+from ..evidence.contracts import EvidenceBundle
 from .models import Evidence, GateContext
 
 
@@ -65,6 +66,17 @@ def is_evidence_timeout_guard_enabled() -> bool:
 
     # No override, use default
     return _EVIDENCE_TIMEOUT_GUARD_ENABLED_DEFAULT
+
+
+def is_evidence_contract_validation_enabled() -> bool:
+    """Whether to validate collect_all_evidence output against EvidenceBundle contract.
+    Default True so tests and CI get contract enforcement; set to false to disable.
+    """
+    import os
+    raw = os.getenv("AI_GATE_EVIDENCE_CONTRACT_VALIDATION_ENABLED", "true").lower()
+    if raw in ("false", "0", "no", "off"):
+        return False
+    return True
 
 
 # =============================================================================
@@ -992,6 +1004,9 @@ async def collect_all_evidence(ctx: GateContext, trace: List[str]) -> dict:
     # Only attach meta when timeout guard feature is enabled.
     if meta is not None:
         result["_meta"] = meta
+
+    if is_evidence_contract_validation_enabled():
+        EvidenceBundle.model_validate(result)
 
     return result
 
