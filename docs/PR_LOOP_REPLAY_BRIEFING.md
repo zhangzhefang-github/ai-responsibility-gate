@@ -3,6 +3,10 @@
 **AI Responsibility Gate – PR Loop Governance Architecture**
 
 > 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 职责边界 → 规则控制 → 结果表 → 讲稿 → Q&A。
+>
+> *建议在 GitHub 上查看以正确渲染 Mermaid 图。*
+
+**背景：** AI Responsibility Gate 是责任中心化决策系统（signal → evidence → matrix → decision）。本文汇报其 PR 循环治理扩展：在 multi-agent PR 场景下，通过 loop-aware matrix routing 实现收敛与 churn 的自动切换，并用 replay 验证。
 
 ---
 
@@ -114,7 +118,7 @@ flowchart LR
 
 ## 5. Replay 结果表
 
-### case_001：真实案例（OpenClaw 远程 token fallback）
+### case_001：真实案例（[OpenClaw PR #27286](https://github.com/openclaw/openclaw/pull/27286) — gateway remote token fallback）
 
 | Round | loop_state | project_signals | effective_matrix | decision | expected | match |
 |-------|------------|-----------------|-----------------|----------|----------|-------|
@@ -134,7 +138,7 @@ flowchart LR
 
 **汇总：** 8 rounds，8/8 通过，Accuracy 100%。
 
-**Interpretation:** case_001 demonstrates real-world PR loop governance; case_002 isolates loop-aware routing behavior.
+**Interpretation:** case_001 demonstrates real-world PR loop governance (Greptile review → CI failure → maintainer intervention); case_002 isolates loop-aware routing behavior.
 
 *Note: In case_002, LOW_VALUE_NITS is mapped to UNKNOWN_SIGNAL by the adapter for mechanism isolation (routing behavior is independent of signal semantics).*
 
@@ -178,3 +182,12 @@ flowchart LR
 | 为什么不直接写规则？ | 规则数量会增长，但复杂度应该限制在 policy 层，而不是 core。 |
 | 为什么要 replay？ | Replay 可以用真实案例验证治理策略，而不影响线上 PR。 |
 | 未来怎么扩展？ | 新的 PR 工具链只需要 adapter。Gate core 不变。 |
+
+---
+
+## 8. 参考链接
+
+| 资源 | 链接 |
+|------|------|
+| case_001 真实 PR | [openclaw/openclaw#27286](https://github.com/openclaw/openclaw/pull/27286) |
+| case 文件 | `cases/pr_loop_real/*.json` |
