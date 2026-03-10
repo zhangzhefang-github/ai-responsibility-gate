@@ -4,7 +4,7 @@
 
 > 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 三层架构 → 职责边界 → 规则复杂度控制 → 多 domain 验证 → 结果表 → 讲稿 → 问答。
 >
-> *建议在 GitHub 上查看以正确渲染 Mermaid 图。*
+> **建议**：在 GitHub 上查看以正确渲染 Mermaid 图。
 
 **背景：** AI Responsibility Gate 是责任中心化决策系统（signal → evidence → matrix → decision）。
 本文汇报其 PR 循环治理扩展：在 multi-agent PR 场景下，通过 loop-aware matrix routing 实现收敛与 churn 的自动切换，并用 replay 验证。
@@ -99,6 +99,8 @@ flowchart LR
 **loop_state 来源：** loop_state 由 replay/runtime context 维护，作为 decision request 的一部分传入 Gate。
 Replay 场景下由 case JSON 的 `rounds[].loop_state` 提供；生产环境由 agent 运行时维护并传入。
 Gate 为 Stateless：不存储 PR 状态，由 Replay 或 Runtime 提供「真相」，降低 Gate 维护成本与分布式一致性复杂度。
+
+**Trust 边界（新增）：** Replay 场景：loop_state 来自 case JSON，可视为可信输入。Production 场景：loop_state 由 agent runtime 提供，若 runtime 不可信，应通过 runtime 层或 observability / audit 系统进行状态校验。目的：避免读者误解 Gate 在生产环境中直接信任 runtime。
 
 **loop_state 结构：** `loop_state = { round_index, nit_only_streak }`。
 
@@ -264,7 +266,7 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 | 3 | (3, 3) | LOW_VALUE_NITS | pr_loop_phase_e_v0.1 | ALLOW | ALLOW | ✓ |
 | 4 | (5, 0) | LOW_VALUE_NITS | pr_loop_churn_v0.1 | HITL | HITL | ✓ |
 
-*project_signals 来自 case 的 signals 经 adapter（Signal → EvidenceProvider → risk_level）映射后的结果。case_002 的 signals 为 LOW_VALUE_NITS（低价值 nit 类评论），映射为 R0 → LOW_VALUE_NITS。*
+> **说明**：project_signals 来自 case 的 signals 经 adapter（Signal → EvidenceProvider → risk_level）映射后的结果。case_002 的 signals 为 LOW_VALUE_NITS（低价值 nit 类评论），映射为 R0 → LOW_VALUE_NITS。
 
 **汇总：** 8 rounds，当前 replay 样例集下预期决策与实际决策一致（8/8）。
 
@@ -304,7 +306,7 @@ These results demonstrate correctness of the governance logic on the current rep
 
 决策 trace 支持治理决策的可观测性与可审计性，为未来的 observability、audit、decision explainability 提供基础。
 
-*注：case_002 中 project_signals 均为 LOW_VALUE_NITS（低风险 nit 类）。决策变化由 loop_state 驱动（nit_only_streak、round_index），而非 signal 风险等级，体现 routing 与 signal 语义解耦。*
+> **注**：case_002 中 project_signals 均为 LOW_VALUE_NITS（低风险 nit 类）。决策变化由 loop_state 驱动（nit_only_streak、round_index），而非 signal 风险等级，体现 routing 与 signal 语义解耦。
 
 ---
 
@@ -353,7 +355,7 @@ These results demonstrate correctness of the governance logic on the current rep
 | 为什么需要 matrix？ | 将治理规则从代码抽离为配置。规则写代码则每次策略变更需改代码、重发布。Matrix 以 YAML 配置、可版本管理、可 replay 回归，策略独立演进而不动 Gate 核心。 |
 | 为什么 Evidence 不是 policy layer？ | Evidence 解决语义归一化（signal→risk_level 等）；Policy（matrix）解决决策规则（根据 evidence 裁决）。职责不同。 |
 | loop_state 为什么不算业务规则？ | loop_state 只描述交互状态（round_index、nit_only_streak），作为 routing context 选矩阵，不表达 domain 语义。业务规则在 matrix 中定义。 |
-| 如果 Agent 伪造 loop_state（例如一直发送 round_index=1），Gate 是否会被绕过？ | loop_state 属于 runtime context，由 agent runtime 或 replay 提供。Gate 不维护 runtime state，以保持 control plane 与 execution plane 的解耦。若 runtime 不可信，应在 runtime 层或 observability/audit 系统中进行状态校验，而不是在 Gate 内部维护执行状态，否则 Gate 将演变为 workflow engine。 |
+| 如果 Agent 伪造 loop_state（例如一直发送 round_index=1），Gate 是否会被绕过？ | loop_state 属于 runtime context，由 agent runtime 或 replay 提供。Gate 不维护 runtime state，以保持 control plane 与 execution plane 的解耦。若 runtime 不可信，应在 runtime 层或 observability/audit 系统中进行状态校验，而不是在 Gate 内部维护执行状态，否则 Gate 将演变为 workflow engine。**Stateless but Verifiable（新增）：** Gate 本身保持 stateless，不维护 runtime 执行状态；但通过 decision trace、observability 或外部 audit 系统，可以对执行序列进行一致性校验，从而增强治理可验证性。Gate 不直接信任 runtime 输入，而是依赖外部可验证机制。 |
 | 为什么需要 routing，而不是把 loop_state 写进 matrix 条件？ | loop_state 决定「用哪套矩阵」，矩阵内规则决定「evidence 如何裁决」。若把 loop_state 写进矩阵条件，每套策略需重复定义大量条件，矩阵膨胀；routing 将「选策略」与「执行策略」分离，矩阵数量有限。 |
 | 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 按统一规范映射到 R0–R3，进入 Gate 前已归一化。 |
 | 为什么不用 OPA？ | OPA 解决 authorization（谁访问什么资源）；本系统解决 agent 行为治理（loop churn、tool 风险、是否 HITL）。关注点不同。 |

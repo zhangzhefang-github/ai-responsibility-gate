@@ -87,3 +87,7 @@ Decision (ALLOW / ONLY_SUGGEST / HITL / DENY)
 ### Phase 5+：Runtime integration / observability（规划中）
 
 - 目标：运行时集成、可观测性、生产环境部署
+- **Future Work（新增）：**
+  - State Verification / Trace Consistency Check：校验 runtime 调用序列与 Gate decision trace 的一致性
+  - Governance Context Injection：在 Evidence 之外注入可选治理上下文（如仓库权重、代码敏感度等）
+  - Semantic Oscillation Detection：基于 decision trace 分析 agent 循环是否存在语义震荡，作为 loop governance 的增强能力
