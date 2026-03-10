@@ -1,0 +1,12 @@
+{
+  "case_id": "case_001_scope_read",
+  "domain": "permission",
+  "description": "Scope read → R0 → ALLOW",
+  "matrix_path": "matrices/permission_demo.yaml",
+  "rounds": [
+    {
+      "scope_request": "read",
+      "expected_decision": "ALLOW"
+    }
+  ]
+}

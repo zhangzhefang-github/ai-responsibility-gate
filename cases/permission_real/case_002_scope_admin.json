@@ -1,0 +1,12 @@
+{
+  "case_id": "case_002_scope_admin",
+  "domain": "permission",
+  "description": "Scope admin → R3 → HITL",
+  "matrix_path": "matrices/permission_demo.yaml",
+  "rounds": [
+    {
+      "scope_request": "admin",
+      "expected_decision": "HITL"
+    }
+  ]
+}

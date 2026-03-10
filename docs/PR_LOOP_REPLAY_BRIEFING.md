@@ -116,7 +116,70 @@ flowchart LR
 
 ---
 
-## 5. Replay 结果表
+## 5. Architecture Upgrade
+
+系统已升级为三层治理架构，PR loop 是第一个接入的 signal domain。
+
+| 层级 | 说明 |
+|------|------|
+| **Signal Layer** | `(domain, signal_type, payload)`。Gate 不解析 payload。 |
+| **Evidence Providers** | 插件式：`EvidenceProvider.supports(signal)`、`evaluate(signal)` → `GovernanceEvidence`。 |
+| **AI Responsibility Gate** | 只依赖 evidence 标准字段（risk_level, action_type, scope_level, verifiability）。 |
+
+**要点：**
+
+- Gate 只消费 evidence 标准字段，不直接理解具体 domain payload。
+- PR loop 是第一个 signal domain（domain=pr，signal_type=review_bug/ci_failure/maintainer_intervention/nit_only）。
+- 新 domain 通过 **Signal + EvidenceProvider** 接入，无需修改 Gate 核心。
+
+### Why this abstraction
+
+**为什么 Gate 只消费 evidence？** Signal 承载各 domain 的原始语义（如 PR 的 review_bug、permission 的 scope_request），形式各异。若 Gate 直接解析 signal，则每增加一个 domain 就要改 Gate，耦合度高。Evidence 提供 Gate 可消费的**标准字段**（risk_level, action_type, scope_level, verifiability），Gate 只依赖这些字段做裁决，与 domain 无关。
+
+**Signal / Evidence / Gate 的解耦关系：** Signal 层负责「表达」，Evidence 层负责「转换」，Gate 层负责「裁决」。各层职责单一，domain 语义变化不会穿透到 Gate。
+
+**这种分层如何支持多 domain 扩展？** 新 domain 只需实现 Signal 格式 + EvidenceProvider，将 domain 语义映射为 evidence 标准字段，即可接入现有 Gate pipeline，无需修改 Gate 核心。PR 与 Permission 两个 domain 的验证已证明该路径成立。
+
+---
+
+## 6. Multi-Domain Validation
+
+系统已完成多 domain 验证，证明其不是 PR 专用 demo，而是 **AI Responsibility Gate / AI Agent Governance Control Plane** 的雏形。
+
+| Domain | 状态 | 说明 |
+|--------|------|------|
+| **Domain 1: PR loop governance** | 已验证 | loop-aware matrix routing，8/8 rounds replay 通过 |
+| **Domain 2: Permission governance** | 已验证 | scope_request → risk_level，2/2 rounds replay 通过 |
+
+**要点：**
+
+- 两个 domain 均通过 replay 离线验证，Gate 核心未改动。
+- 新 domain 接入路径：Signal + EvidenceProvider → standardized governance inputs → 现有 Gate pipeline。
+- 系统具备多 domain 扩展能力，可作为 AI Agent 治理控制面雏形。
+
+### Control Plane 边界说明
+
+**当前已具备的 Control Plane 能力：**
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| 策略裁决 | ✅ | Gate 作为唯一裁决点，signal → evidence → matrix → decision |
+| 策略配置化 | ✅ | 规则在 YAML 矩阵中，可独立于代码演进 |
+| 多 domain 接入 | ✅ | Signal + EvidenceProvider 插件式扩展 |
+| 离线验证 | ✅ | Replay 支持 case 级策略验证 |
+
+**未来待补充的能力：**
+
+| 能力 | 说明 |
+|------|------|
+| Runtime integration | 与生产环境 agent 运行时集成，实时决策 |
+| Observability | 决策 trace、metrics、审计日志的可观测性 |
+| Policy distribution | 策略下发、版本管理、灰度发布 |
+| 更多 domain | Tool governance、Hallucinated action verification 等 |
+
+---
+
+## 7. Replay 结果表
 
 ### case_001：真实案例（[OpenClaw PR #27286](https://github.com/openclaw/openclaw/pull/27286) — gateway remote token fallback）
 
@@ -138,13 +201,30 @@ flowchart LR
 
 **汇总：** 8 rounds，8/8 通过，Accuracy 100%。
 
-**Interpretation:** case_001 demonstrates real-world PR loop governance (Greptile review → CI failure → maintainer intervention); case_002 isolates loop-aware routing behavior.
+### Permission Domain（case_001_scope_read、case_002_scope_admin）
+
+| Case | scope_request | project_signals | decision | expected | match |
+|------|---------------|-----------------|----------|----------|-------|
+| case_001_scope_read | read | LOW_VALUE_NITS | ALLOW | ALLOW | ✓ |
+| case_002_scope_admin | admin | BUILD_CHAIN | HITL | HITL | ✓ |
+
+**汇总：** 2 rounds，2/2 通过，Accuracy 100%。
+
+### 总体汇总
+
+| 域 | Rounds | 通过 | 说明 |
+|----|--------|------|------|
+| PR loop | 8 | 8/8 | case_001 + case_002 |
+| Permission | 2 | 2/2 | case_001_scope_read + case_002_scope_admin |
+| **Tests** | — | **116 passed** | 全量测试通过 |
+
+**Interpretation:** case_001 demonstrates real-world PR loop governance (Greptile review → CI failure → maintainer intervention); case_002 isolates loop-aware routing behavior. Permission domain validates scope_request → risk_level → decision path with read→ALLOW, admin→HITL.
 
 *Note: In case_002, LOW_VALUE_NITS is mapped to UNKNOWN_SIGNAL by the adapter for mechanism isolation (routing behavior is independent of signal semantics).*
 
 ---
 
-## 6. 2–3 分钟讲稿
+## 8. 2–3 分钟讲稿
 
 **开场：**
 
@@ -167,38 +247,46 @@ flowchart LR
 
 **验证：**
 
-> 我现在已经做了两个 replay case：一个是真实 OpenClaw PR，一个是教学型 reviewer loop case。目前 8/8 rounds replay 全部通过。Replay allows offline validation of governance policies without interfering with live PR workflows.
+> 我现在已经做了两个 replay case：一个是真实 OpenClaw PR，一个是教学型 reviewer loop case。目前 8/8 rounds replay 全部通过。此外，Permission domain 也已完成验证（read→ALLOW、admin→HITL，2/2 通过），证明系统不是 PR 专用，而是多 domain 治理控制面雏形。Replay allows offline validation of governance policies without interfering with live PR workflows.
 
 **收尾：**
 
-> 这说明 AI coding / reviewer 多 agent 协作场景，可以通过责任网关进行治理，而不需要改变原有工具链。
+> 这说明 AI coding / reviewer 多 agent 协作场景，以及更一般的 agent action governance 场景，都可以通过责任网关进行治理，而不需要改变原有工具链。
 
 ---
 
-## 7. 如果我是评审，我会问你什么
+## 9. 如果我是评审，我会问你什么
 
 | 问题 | 答案 |
 |------|------|
 | 为什么不直接写规则？ | 规则数量会增长，但复杂度应该限制在 policy 层，而不是 core。 |
 | 为什么要 replay？ | Replay 可以用真实案例验证治理策略，而不影响线上 PR。 |
 | 未来怎么扩展？ | 新的 PR 工具链只需要 adapter。Gate core 不变。 |
+| 是否只支持 PR？ | 否。Permission domain 已验证（2/2 通过），Gate 核心未改，证明多 domain 扩展路径成立。 |
 
 ---
 
-## 8. 参考链接
+## 10. 参考链接
 
-### 外部
+### External Evidence
 
 | 资源 | 链接 |
 |------|------|
 | case_001 真实 PR | [openclaw/openclaw#27286](https://github.com/openclaw/openclaw/pull/27286) |
 
-### 本仓库关联文档
+### Core Docs
 
 | 文档 | 说明 |
 |------|------|
+| [AI_AGENT_GOVERNANCE_ROADMAP.md](AI_AGENT_GOVERNANCE_ROADMAP.md) | 治理控制面 roadmap |
+| [PERMISSION_GOVERNANCE_REFINED_DESIGN.md](PERMISSION_GOVERNANCE_REFINED_DESIGN.md) | Permission domain 最小实施设计 |
 | [PR_LOOP_REAL_CASE_JSON_SCHEMA.md](PR_LOOP_REAL_CASE_JSON_SCHEMA.md) | Case 格式定义 |
 | [PR_LOOP_REAL_CASE_ADAPTER_DESIGN.md](PR_LOOP_REAL_CASE_ADAPTER_DESIGN.md) | Adapter 设计（PR 信号 → 项目信号） |
 | [LOOP_GOVERNANCE_CORE_MIGRATION_DESIGN.md](LOOP_GOVERNANCE_CORE_MIGRATION_DESIGN.md) | Loop 策略与 matrix routing 设计 |
-| [case_001](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/cases/pr_loop_real/case_001_openclaw_remote_token_fallback.json) · [case_002](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/cases/pr_loop_real/case_002_nit_churn_demo.json) | Replay case 文件 |
-| [pr_loop_demo.yaml](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/matrices/pr_loop_demo.yaml) | Loop policy 配置 |
+
+### Replay Assets
+
+| 资源 | 链接 |
+|------|------|
+| case_001 · case_002 | [pr_loop_real](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/cases/pr_loop_real/) · [permission_real](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/cases/permission_real/) |
+| pr_loop_demo.yaml · permission_demo.yaml | [matrices/](https://github.com/zhangzhefang-github/ai-responsibility-gate/blob/main/matrices/) |
