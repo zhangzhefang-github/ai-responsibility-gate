@@ -53,9 +53,9 @@ flowchart TB
 |---|------|------|
 | 1 | PR is multi-agent | Author, Reviewer, CI, Maintainer |
 | 2 | Case JSON as contract | 统一 replay 输入 |
-| 3 | Adapter isolates domain | PR signals → governance signals |
+| 3 | Adapter isolates domain | PR 信号 → 治理信号 |
 | 4 | Gate as decision authority | signal → evidence → matrix → decision |
-| 5 | Loop-aware routing | loop_state → matrix switching |
+| 5 | Loop-aware routing | loop_state → 矩阵切换 |
 
 **1 分钟讲解话术：**
 
