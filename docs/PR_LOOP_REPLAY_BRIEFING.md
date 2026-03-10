@@ -344,21 +344,58 @@ Permission domain 验证 scope_request → risk_level → decision 的跨 domain
 
 ## 9. 问答
 
+| 层级 | 问题 | 说明 |
+|------|------|------|
+| 1. 存在性 | 为什么需要独立的 Gate？ | 回答「为何需要 Gate」 |
+| 2. 信任（核心） | 如果 Agent 伪造 loop_state？ | Stateless but Verifiable，专家最关注 |
+| 3. 信任 | Reviewer Bot 虚假信号？ | 信号可信度 |
+| 4–7. 架构 | Evidence layer、matrix、Evidence vs policy、routing | 架构设计理解 |
+| 8–11. 跨域 | loop_state 不算业务规则、R2 对等、matrix 爆炸、risk_level 可比较 | 跨域与扩展 |
+| 12–13. 方案对比 | OPA、直接写规则 | 为何不选其他方案 |
+| 14–18. 运维 | replay、扩展、只支持 PR、Matrix 切换、性能 | 实践与运维 |
+
+### 1. 存在性
+
 | 问题 | 答案 |
 |------|------|
 | 为什么需要独立的 Gate？为什么不把 policy 写在 Agent 或 Workflow 里？ | 多 Agent 协作时，若每个 Agent 自实现策略，治理逻辑会碎片化。Gate 将治理决策抽离为统一决策中心：Agent 负责执行行为，Gate 负责裁决行为。类似 API Gateway 或 K8s Admission Controller。 |
+
+### 2. 信任
+
+| 问题 | 答案 |
+|------|------|
 | 如果 Agent 伪造 loop_state（例如一直发送 round_index=1），Gate 是否会被绕过？ | loop_state 属于 runtime context，由 agent runtime 或 replay 提供。Gate 不维护 runtime state，以保持 control plane 与 execution plane 的解耦。若 runtime 不可信，应在 runtime 层或 observability/audit 系统中进行状态校验，而不是在 Gate 内部维护执行状态，否则 Gate 将演变为 workflow engine。**Stateless but Verifiable（新增）：** Gate 本身保持 stateless，不维护 runtime 执行状态；但通过 decision trace、observability 或外部 audit 系统，可以对执行序列进行一致性校验，从而增强治理可验证性。Gate 不直接信任 runtime 输入，而是依赖外部可验证机制。 |
 | 如果 Reviewer Bot 产生虚假 BUG_RISK 信号，Gate 会被带偏吗？ | 两层防御：Evidence schema 预留 verifiability，EvidenceProvider 可产出该字段；矩阵可据此扩展为将不可验证信号升级为 HITL 或 ONLY_SUGGEST。Gate 不直接信任 signal，通过 policy 对冲信号噪音。当前假设 EvidenceProvider 为可信组件；若 Provider 不可信，需在 Provider 层增加校验或审计。 |
+
+### 3. 架构
+
+| 问题 | 答案 |
+|------|------|
 | 为什么要 Evidence layer？ | 将各 domain 原始 signal 归一为治理语义（risk_level、action_type 等）。若 Gate 直接消费 signal，每增 domain 即需改 Gate，核心膨胀。Evidence 层完成 domain→governance 转换，Gate 只依赖稳定 schema。 |
 | 为什么需要 matrix？ | 将治理规则从代码抽离为配置。规则写代码则每次策略变更需改代码、重发布。Matrix 以 YAML 配置、可版本管理、可 replay 回归，策略独立演进而不动 Gate 核心。 |
 | 为什么 Evidence 不是 policy layer？ | Evidence 解决语义归一化（signal→risk_level 等）；Policy（matrix）解决决策规则（根据 evidence 裁决）。职责不同。 |
 | 为什么需要 routing，而不是把 loop_state 写进 matrix 条件？ | loop_state 决定「用哪套矩阵」，矩阵内规则决定「evidence 如何裁决」。若把 loop_state 写进矩阵条件，每套策略需重复定义大量条件，矩阵膨胀；routing 将「选策略」与「执行策略」分离，矩阵数量有限。 |
+
+### 4. 跨域与扩展
+
+| 问题 | 答案 |
+|------|------|
 | loop_state 为什么不算业务规则？ | loop_state 只描述交互状态（round_index、nit_only_streak），作为 routing context 选矩阵，不表达 domain 语义。业务规则在 matrix 中定义。 |
 | PR 域的 R2 和 Permission 域的 R2 是对等的吗？ | risk_level 表示 governance risk，不是 domain-specific risk。EvidenceProvider 将 domain 风险映射到统一治理风险等级（R0–R3）。Gate 只处理 governance risk，不处理 domain 语义。 |
 | 随着 domain 增多，matrix 会不会爆炸？ | Matrix 按 governance pattern 增长（base、converged、churn），不按 domain 增长。新增 domain 通常只需新增 EvidenceProvider，不必新增 matrix。 |
 | 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 按统一规范映射到 R0–R3，进入 Gate 前已归一化。 |
+
+### 5. 方案对比
+
+| 问题 | 答案 |
+|------|------|
 | 为什么不用 OPA？ | OPA 解决 authorization（谁访问什么资源）；本系统解决 agent 行为治理（loop churn、tool 风险、是否 HITL）。关注点不同。 |
 | 为什么不直接写规则？ | 规则写代码则 if/else 随场景膨胀。Matrix 将规则限制在 policy 层，Gate core 只执行 pipeline，核心稳定、策略可独立演进。 |
+
+### 6. 运维与实践
+
+| 问题 | 答案 |
+|------|------|
 | 为什么要 replay？ | 策略变更后，用历史 case 离线重跑，校验决策是否变化。相当于 governance CI，确保策略演进不破坏已有行为。 |
 | 未来怎么扩展？ | 新 domain 只需 adapter + EvidenceProvider，Gate core 不变。 |
 | 是否只支持 PR？ | 否。Permission domain 已验证，Gate 未改，多 domain 路径成立。 |
