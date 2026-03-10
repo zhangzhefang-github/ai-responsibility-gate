@@ -1,10 +1,73 @@
 # PR Loop Replay 技术汇报
 
-> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：架构图 → 职责边界 → 规则控制 → 结果表 → 讲稿。
+> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 职责边界 → 规则控制 → 结果表 → 讲稿 → Q&A。
 
 ---
 
-## 1. PR Loop 架构图
+## 1. 一页架构总结（Page 1）
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    PR Multi-Agent Loop                   │
+│                                                          │
+│  Author / AI Coding   Reviewer Bot   CI   Maintainer     │
+│        │                  │          │         │          │
+└────────┴──────────────────┴──────────┴─────────┴──────────┘
+                         │
+                         ▼
+                PR Loop Case JSON
+                         │
+                         ▼
+              Replay Adapter Layer
+        (PR domain → project governance signals)
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────────┐
+│                AI Responsibility Gate                    │
+│                                                          │
+│  signal → evidence → matrix → decision                   │
+│                                                          │
+│  + loop-aware matrix routing                             │
+│      ├─ nit_only_streak ≥ 3  → converged matrix → ALLOW   │
+│      └─ round_index ≥ 5      → churn matrix     → HITL    │
+│                                                          │
+│  Gate = single decision authority                        │
+└──────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+                 Decision + Trace
+            (ALLOW / ONLY_SUGGEST / HITL)
+
+Offline Validation
+────────────────────────────────
+Replay Cases
+• case_001: real OpenClaw PR
+• case_002: nit churn mechanism
+Result: 8 / 8 rounds correct
+```
+
+**五关键信息点：**
+
+| # | 要点 | 说明 |
+|---|------|------|
+| 1 | PR 是 multi-agent 系统 | Author、Reviewer、CI、Maintainer。AI coding 时代，PR 不再是单人流程。 |
+| 2 | Case JSON 是统一输入 | 离线 replay 的关键抽象。 |
+| 3 | Adapter 做域转换 | PR signals → project governance signals（如 REVIEW_LOGIC_BUG → BUG_RISK）。 |
+| 4 | Gate 是唯一裁决点 | signal → evidence → matrix → decision。 |
+| 5 | Loop-aware routing | loop_state → matrix routing。nit_only_streak ≥ 3 → converged；round_index ≥ 5 → churn。 |
+
+**1 分钟讲解话术：**
+
+> 1. PR 在 AI coding 时代已经变成一个 multi-agent loop。  
+> 2. 所以我把 PR 过程抽象成 Case JSON，然后通过 Adapter 转换成治理信号。  
+> 3. 这些信号进入 AI Responsibility Gate，Gate 是唯一裁决点。  
+> 4. Gate 内部使用 signal → evidence → matrix → decision 的治理模型。  
+> 5. 我新增了 loop-aware matrix routing，根据 loop_state 切换治理策略。  
+> 6. 我用两个 replay case 验证了这个机制，目前 8/8 rounds 正确。
+
+---
+
+## 2. PR Loop 架构图（详细）
 
 ```mermaid
 flowchart LR
@@ -37,7 +100,7 @@ flowchart LR
 
 ---
 
-## 2. Design Boundaries
+## 3. Design Boundaries
 
 | 组件 | 职责边界 |
 |------|----------|
@@ -47,7 +110,7 @@ flowchart LR
 
 ---
 
-## 3. Why Rule Explosion Is Controlled
+## 4. Why Rule Explosion Is Controlled
 
 | 机制 | 说明 |
 |------|------|
@@ -57,7 +120,7 @@ flowchart LR
 
 ---
 
-## 4. Replay 结果表
+## 5. Replay 结果表
 
 ### case_001：真实案例（OpenClaw 远程 token fallback）
 
@@ -83,7 +146,7 @@ flowchart LR
 
 ---
 
-## 5. 2–3 分钟讲稿
+## 6. 2–3 分钟讲稿
 
 **开场：**
 
@@ -114,7 +177,7 @@ flowchart LR
 
 ---
 
-## 6. 如果我是评审，我会问你什么
+## 7. 如果我是评审，我会问你什么
 
 | 问题 | 答案 |
 |------|------|
