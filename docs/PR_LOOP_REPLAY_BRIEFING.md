@@ -33,6 +33,7 @@ flowchart TB
         GateInput --> Routing --> Pipeline
         Routing -->|"nit_only_streak ≥ 3"| Conv["converged matrix"]
         Routing -->|"round_index ≥ 5"| Churn["churn matrix"]
+        Routing -->|"otherwise"| Base["base matrix"]
     end
 
     Pipeline --> Decision[Decision + Trace]
@@ -121,7 +122,7 @@ flowchart LR
 | scope_level | permission scope or impact level |
 | verifiability | whether the claim can be externally verified |
 
-verifiability 字段可用于矩阵决策：矩阵可据此决定直接采信 Agent 结论，或强制进入 HITL 流程。
+Evidence schema 预留 verifiability 字段，用于表示某类信号是否可被自动验证。策略矩阵可基于该字段扩展治理策略，例如将不可验证信号升级为 HITL 或 ONLY_SUGGEST。
 
 **示例（Gate 实际消费的 evidence 结构，PR domain）：**
 
@@ -161,7 +162,7 @@ verifiability 字段可用于矩阵决策：矩阵可据此决定直接采信 Ag
 | 机制 | 说明 |
 |------|------|
 | **规则在矩阵中** | 规则写在 YAML 矩阵，不在代码里。新增场景优先扩展矩阵或 adapter 映射，Gate 核心逻辑不变。 |
-| **Routing 而非规则** | loop-aware routing 只决定「选哪个矩阵」，不决定「加什么规则」。矩阵数量有限（base / converged / churn），不随场景线性增长。Routing 为 context 选择当前最适用的规则集（override），选中的矩阵直接作用于 evidence。 |
+| **Routing 而非规则** | loop-aware routing 只决定「选哪个矩阵」，不决定「加什么规则」。矩阵数量有限（base / converged / churn），不随场景线性增长。Routing 根据 loop_state 选择适用的 policy matrix，随后 pipeline 在该矩阵下评估 evidence。 |
 | **Adapter 隔离域** | PR 工具链（Greptile、CodeRabbit 等）信号各异，adapter 做映射，catalog 和 Gate 保持稳定。 |
 
 **Loop governance 通用性：** PR loop governance 是 agent loop governance 的一类实例；nit_only_streak、round_index 等机制可泛化至 AI coding loop、tool retry loop、planner-executor loop 等场景。
@@ -306,6 +307,10 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 
 | 问题 | 答案 |
 |------|------|
+| 为什么需要独立的 Gate？为什么不把 policy 写在 Agent 或 Workflow 里？ | 多 Agent 协作时，若每个 Agent 自实现策略，治理逻辑会碎片化。Gate 将治理决策抽离为统一决策中心：Agent 负责执行行为，Gate 负责裁决行为。类似 API Gateway 或 K8s Admission Controller。 |
+| 如果 Reviewer Bot 产生虚假 BUG_RISK 信号，Gate 会被带偏吗？ | 两层防御：EvidenceProvider 产出 verifiability；矩阵可据此将不可验证信号升级为 HITL 或 ONLY_SUGGEST。Gate 不直接信任 signal，通过 policy 对冲信号噪音。当前假设 EvidenceProvider 为可信组件；若 Provider 不可信，需在 Provider 层增加校验或审计。 |
+| PR 域的 R2 和 Permission 域的 R2 是对等的吗？ | risk_level 表示 governance risk，不是 domain-specific risk。EvidenceProvider 将 domain 风险映射到统一治理风险等级（R0–R3）。Gate 只处理 governance risk，不处理 domain 语义。 |
+| 随着 domain 增多，matrix 会不会爆炸？ | Matrix 按 governance pattern 增长（base、converged、churn），不按 domain 增长。新增 domain 通常只需新增 EvidenceProvider，不必新增 matrix。 |
 | 为什么要 Evidence layer？ | 将各 domain 原始 signal 归一为治理语义（risk_level、action_type 等）。若 Gate 直接消费 signal，每增 domain 即需改 Gate，核心膨胀。Evidence 层完成 domain→governance 转换，Gate 只依赖稳定 schema。 |
 | 为什么需要 matrix？ | 将治理规则从代码抽离为配置。规则写代码则每次策略变更需改代码、重发布。Matrix 以 YAML 配置、可版本管理、可 replay 回归，策略独立演进而不动 Gate 核心。 |
 | 为什么 Evidence 不是 policy layer？ | Evidence 解决语义归一化（signal→risk_level 等）；Policy（matrix）解决决策规则（根据 evidence 裁决）。职责不同。 |
