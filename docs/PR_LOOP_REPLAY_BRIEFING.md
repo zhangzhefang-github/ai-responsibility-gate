@@ -94,7 +94,7 @@ flowchart LR
 | AI Responsibility Gate | loop-aware matrix routing，根据 loop_state 切换矩阵 |
 | Decision + Trace | 决策（ALLOW / ONLY_SUGGEST / HITL）及 effective_matrix 等 |
 
-**loop_state 来源：** loop_state 由 replay/runtime context 维护，作为 decision request 的一部分传入 Gate。Replay 场景下由 case JSON 的 `rounds[].loop_state` 提供；生产环境由 agent 运行时维护并传入。
+**loop_state 来源：** loop_state 由 replay/runtime context 维护，作为 decision request 的一部分传入 Gate。Replay 场景下由 case JSON 的 `rounds[].loop_state` 提供；生产环境由 agent 运行时维护并传入。Gate 为 Stateless：不存储 PR 状态，由 Replay 或 Runtime 提供「真相」，降低 Gate 维护成本与分布式一致性复杂度。
 
 **loop_state 结构：** `loop_state = { round_index, nit_only_streak }`。`round_index` 表示当前 review 轮次；`nit_only_streak` 表示连续低价值 review 轮次数。二者构成 loop routing 的数据基础。
 
@@ -118,6 +118,8 @@ flowchart LR
 | action_type | suggested governance action（READ / WRITE / …） |
 | scope_level | permission scope or impact level |
 | verifiability | whether the claim can be externally verified |
+
+verifiability 字段可用于矩阵决策：矩阵可据此决定直接采信 Agent 结论，或强制进入 HITL 流程。
 
 **示例（Gate 实际消费的 evidence 结构）：**
 
@@ -157,7 +159,7 @@ flowchart LR
 | 机制 | 说明 |
 |------|------|
 | **规则在矩阵中** | 规则写在 YAML 矩阵，不在代码里。新增场景优先扩展矩阵或 adapter 映射，Gate 核心逻辑不变。 |
-| **Routing 而非规则** | loop-aware routing 只决定「选哪个矩阵」，不决定「加什么规则」。矩阵数量有限（base / converged / churn），不随场景线性增长。 |
+| **Routing 而非规则** | loop-aware routing 只决定「选哪个矩阵」，不决定「加什么规则」。矩阵数量有限（base / converged / churn），不随场景线性增长。Routing 为 context 选择当前最适用的规则集（override），选中的矩阵直接作用于 evidence。 |
 | **Adapter 隔离域** | PR 工具链（Greptile、CodeRabbit 等）信号各异，adapter 做映射，catalog 和 Gate 保持稳定。 |
 
 **Loop governance 通用性：** PR loop governance 是 agent loop governance 的一类实例；nit_only_streak、round_index 等机制可泛化至 AI coding loop、tool retry loop、planner-executor loop 等场景。
@@ -177,7 +179,7 @@ flowchart LR
 
 ### Control Plane 边界说明
 
-**定位：** 当前为 governance decision engine（策略裁决 + 策略配置化）。完整 Control Plane 需补齐 runtime integration、policy distribution、observability、audit。
+**定位：** 当前为 governance decision engine（策略裁决 + 策略配置化）。完整 Control Plane 需补齐 runtime integration、policy distribution、observability、audit。架构核心是将治理逻辑从业务代码中剥离：Policy as Code（矩阵配置）与 Loop as First-class Citizen（循环状态作为治理一等公民），为从单点准入演进至全生命周期轨迹治理奠定基础。
 
 **当前已具备的能力：**
 
@@ -288,6 +290,8 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 
 > 这说明 AI coding / reviewer 多 agent 协作场景，以及更一般的 agent action governance 场景，都可以通过责任网关进行治理，而不需要改变原有工具链。
 
+**讲稿加餐（可选）：** 这套架构的核心是将治理逻辑从业务代码中剥离。我们不仅实现了 Policy as Code（矩阵配置），还实现了 Loop as First-class Citizen（将循环状态作为治理的一等公民）。这为未来从「单点准入」演进到「全生命周期轨迹治理」打下了基础。
+
 ---
 
 ## 9. 如果我是评审，我会问你什么
@@ -304,6 +308,8 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 | 为什么要 Evidence layer？ | To decouple domain signals from governance policy。 |
 | 为什么不用 OPA？ | OPA focuses on authorization policy；本系统 governs agent behavior loops，职责不同。 |
 | 为什么需要 matrix？ | To externalize governance rules into versioned policy artifacts。 |
+| Matrix 版本的平滑切换怎么做？ | Matrix 为 versioned YAML，存于 Git 或配置中心。通过 Decision Request 中的版本标签实现灰度切换，Replay 机制确保新版本矩阵不会导致存量 Case 逻辑崩坏。 |
+| 性能开销如何？会成为瓶颈吗？ | Gate 为轻量级 pipeline，不涉及复杂推理（推理已在 Evidence Provider 阶段完成），核心仅做矩阵匹配，延迟在毫秒级。 |
 
 ---
 
