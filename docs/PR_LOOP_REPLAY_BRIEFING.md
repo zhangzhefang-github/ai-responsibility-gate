@@ -219,11 +219,13 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 
 | Round | loop_state | project_signals | effective_matrix | decision | expected | match |
 |-------|------------|-----------------|-----------------|----------|----------|-------|
-| 0 | (0, 0) | UNKNOWN_SIGNAL | pr_loop_demo_v0.1 | ONLY_SUGGEST | ONLY_SUGGEST | ✓ |
-| 1 | (1, 1) | UNKNOWN_SIGNAL | pr_loop_demo_v0.1 | ONLY_SUGGEST | ONLY_SUGGEST | ✓ |
-| 2 | (2, 2) | UNKNOWN_SIGNAL | pr_loop_demo_v0.1 | ONLY_SUGGEST | ONLY_SUGGEST | ✓ |
-| 3 | (3, 3) | UNKNOWN_SIGNAL | pr_loop_phase_e_v0.1 | ALLOW | ALLOW | ✓ |
-| 4 | (5, 0) | UNKNOWN_SIGNAL | pr_loop_churn_v0.1 | HITL | HITL | ✓ |
+| 0 | (0, 0) | LOW_VALUE_NITS | pr_loop_demo_v0.1 | ONLY_SUGGEST | ONLY_SUGGEST | ✓ |
+| 1 | (1, 1) | LOW_VALUE_NITS | pr_loop_demo_v0.1 | ONLY_SUGGEST | ONLY_SUGGEST | ✓ |
+| 2 | (2, 2) | LOW_VALUE_NITS | pr_loop_demo_v0.1 | ONLY_SUGGEST | ONLY_SUGGEST | ✓ |
+| 3 | (3, 3) | LOW_VALUE_NITS | pr_loop_phase_e_v0.1 | ALLOW | ALLOW | ✓ |
+| 4 | (5, 0) | LOW_VALUE_NITS | pr_loop_churn_v0.1 | HITL | HITL | ✓ |
+
+*project_signals 来自 case 的 signals 经 adapter（Signal → EvidenceProvider → risk_level）映射后的结果。case_002 的 signals 为 LOW_VALUE_NITS（低价值 nit 类评论），映射为 R0 → LOW_VALUE_NITS。*
 
 **汇总：** 8 rounds，当前 replay 样例集下预期决策与实际决策一致（8/8）。
 
@@ -259,7 +261,7 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 
 决策 trace 支持治理决策的可观测性与可审计性，为未来的 observability、audit、decision explainability 提供基础。
 
-*注：case_002 中 LOW_VALUE_NITS 被 adapter 映射为 UNKNOWN_SIGNAL，用于隔离验证 loop routing 机制（routing 行为与 signal 语义解耦）。*
+*注：case_002 中 project_signals 均为 LOW_VALUE_NITS（低风险 nit 类）。决策变化由 loop_state 驱动（nit_only_streak、round_index），而非 signal 风险等级，体现 routing 与 signal 语义解耦。*
 
 ---
 
