@@ -2,7 +2,7 @@
 
 **AI Responsibility Gate – PR Loop Governance Architecture**
 
-> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 三层架构 → 职责边界 → 规则控制 → 结果表 → 讲稿 → Q&A。
+> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 三层架构 → 职责边界 → 规则复杂度控制 → 多 domain 验证 → 结果表 → 讲稿 → Q&A。
 >
 > *建议在 GitHub 上查看以正确渲染 Mermaid 图。*
 
@@ -102,7 +102,7 @@ flowchart LR
 
 ## 3. Governance Architecture Model
 
-系统当前采用三层治理架构：Signal Layer、Evidence Providers、AI Responsibility Gate。A signal domain represents a category of governance scenarios that produce domain-specific signals but share the same decision model. PR loop 是当前第一个完成验证的 signal domain；新 domain 通过 Signal + EvidenceProvider 接入，Gate 核心保持不变。
+系统当前采用三层治理架构：Signal Layer、Evidence Providers、AI Responsibility Gate。Signal domain 指一类治理场景：产生 domain-specific 信号，但共享同一决策模型。PR loop 是当前第一个完成验证的 signal domain；新 domain 通过 Signal + EvidenceProvider 接入，Gate 核心保持不变。
 
 | 层级 | 说明 |
 |------|------|
@@ -121,13 +121,13 @@ flowchart LR
 
 verifiability 字段可用于矩阵决策：矩阵可据此决定直接采信 Agent 结论，或强制进入 HITL 流程。
 
-**示例（Gate 实际消费的 evidence 结构）：**
+**示例（Gate 实际消费的 evidence 结构，PR domain）：**
 
 ```json
 {
   "risk_level": "R2",
-  "action_type": "WRITE",
-  "scope_level": "REPO",
+  "action_type": "READ",
+  "scope_level": null,
   "verifiability": true
 }
 ```
