@@ -19,18 +19,20 @@ flowchart TB
 
     Sources --> CaseJSON[PR Loop Case JSON]
     CaseJSON --> Adapter[Replay Adapter]
-    Adapter -->|"PR domain → project signals"| Pipeline
+    Adapter -->|"PR domain → project signals"| GateInput
 
     subgraph Gate [AI Responsibility Gate]
         direction TB
+        GateInput[Input]
         Pipeline["signal → evidence → matrix → decision"]
         Routing["loop-aware matrix routing"]
-        Pipeline --> Routing
+        GateInput --> Pipeline --> Routing
         Routing -->|"nit_only_streak ≥ 3"| Conv["converged matrix → ALLOW"]
         Routing -->|"round_index ≥ 5"| Churn["churn matrix → HITL"]
     end
 
     Pipeline --> Decision[Decision + Trace]
+    Decision --> Validation
 
     subgraph Validation [Offline Validation]
         V1["case_001: real OpenClaw PR"]
@@ -41,13 +43,13 @@ flowchart TB
 
 **五关键信息点：**
 
-| # | 要点 | 说明 |
-|---|------|------|
-| 1 | PR 是 multi-agent 系统 | Author、Reviewer、CI、Maintainer。AI coding 时代，PR 不再是单人流程。 |
-| 2 | Case JSON 是统一输入 | 离线 replay 的关键抽象。 |
-| 3 | Adapter 做域转换 | PR signals → project governance signals（如 REVIEW_LOGIC_BUG → BUG_RISK）。 |
-| 4 | Gate 是唯一裁决点 | signal → evidence → matrix → decision。 |
-| 5 | Loop-aware routing | loop_state → matrix routing。nit_only_streak ≥ 3 → converged；round_index ≥ 5 → churn。 |
+| # | Key Insight | Description |
+|---|-------------|-------------|
+| 1 | PR is multi-agent | Author, Reviewer, CI, Maintainer |
+| 2 | Case JSON as contract | unified replay input |
+| 3 | Adapter isolates domain | PR signals → governance signals |
+| 4 | Gate as decision authority | signal → evidence → matrix → decision |
+| 5 | Loop-aware routing | loop_state → matrix switching |
 
 **1 分钟讲解话术：**
 
@@ -60,7 +62,7 @@ flowchart TB
 
 ---
 
-## 2. PR Loop 架构图（详细）
+## 2. PR Loop Execution Flow
 
 ```mermaid
 flowchart LR
@@ -134,6 +136,8 @@ flowchart LR
 
 **Interpretation:** case_001 demonstrates real-world PR loop governance; case_002 isolates loop-aware routing behavior.
 
+*Note: In case_002, LOW_VALUE_NITS is mapped to UNKNOWN_SIGNAL by the adapter for mechanism isolation (routing behavior is independent of signal semantics).*
+
 ---
 
 ## 6. 2–3 分钟讲稿
@@ -159,7 +163,7 @@ flowchart LR
 
 **验证：**
 
-> 我现在已经做了两个 replay case：一个是真实 OpenClaw PR，一个是教学型 reviewer loop case。目前 8/8 rounds replay 全部通过。
+> 我现在已经做了两个 replay case：一个是真实 OpenClaw PR，一个是教学型 reviewer loop case。目前 8/8 rounds replay 全部通过。Replay allows offline validation of governance policies without interfering with live PR workflows.
 
 **收尾：**
 
