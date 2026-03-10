@@ -2,7 +2,7 @@
 
 **AI Responsibility Gate – PR Loop Governance Architecture**
 
-> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 职责边界 → 规则控制 → 结果表 → 讲稿 → Q&A。
+> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 三层架构 → 职责边界 → 规则控制 → 结果表 → 讲稿 → Q&A。
 >
 > *建议在 GitHub 上查看以正确渲染 Mermaid 图。*
 
@@ -41,7 +41,7 @@ flowchart TB
     subgraph Validation [Offline Validation]
         V1["case_001: real OpenClaw PR"]
         V2["case_002: nit churn mechanism"]
-        V3["Result: 8/8 rounds correct"]
+        V3["Result: 8/8 rounds passed"]
     end
 ```
 
@@ -62,7 +62,7 @@ flowchart TB
 > 3. 这些信号进入 AI Responsibility Gate，Gate 是唯一裁决点。  
 > 4. Gate 内部使用 signal → evidence → matrix → decision 的治理模型。  
 > 5. 我新增了 loop-aware matrix routing，根据 loop_state 切换治理策略。  
-> 6. 我用两个 replay case 验证了这个机制，目前 8/8 rounds 正确。
+> 6. 我用两个 replay case 验证了这个机制，8/8 rounds 通过。
 
 ---
 
@@ -94,9 +94,55 @@ flowchart LR
 | AI Responsibility Gate | loop-aware matrix routing，根据 loop_state 切换矩阵 |
 | Decision + Trace | 决策（ALLOW / ONLY_SUGGEST / HITL）及 effective_matrix 等 |
 
+**loop_state 来源：** loop_state 由 replay/runtime context 维护，作为 decision request 的一部分传入 Gate。Replay 场景下由 case JSON 的 `rounds[].loop_state` 提供；生产环境由 agent 运行时维护并传入。
+
+**loop_state 结构：** `loop_state = { round_index, nit_only_streak }`。`round_index` 表示当前 review 轮次；`nit_only_streak` 表示连续低价值 review 轮次数。二者构成 loop routing 的数据基础。
+
 ---
 
-## 3. Design Boundaries
+## 3. Governance Architecture Model
+
+系统当前采用三层治理架构：Signal Layer、Evidence Providers、AI Responsibility Gate。A signal domain represents a category of governance scenarios that produce domain-specific signals but share the same decision model. PR loop 是当前第一个完成验证的 signal domain；新 domain 通过 Signal + EvidenceProvider 接入，Gate 核心保持不变。
+
+| 层级 | 说明 |
+|------|------|
+| **Signal Layer** | `(domain, signal_type, payload)`。Gate 不解析 payload。 |
+| **Evidence Providers** | 插件式：`EvidenceProvider.supports(signal)`、`evaluate(signal)` → `GovernanceEvidence`。 |
+| **AI Responsibility Gate** | 只依赖 evidence 标准字段（risk_level, action_type, scope_level, verifiability）。 |
+
+**GovernanceEvidence schema（Gate 依赖的稳定 schema，非 domain signal）：**
+
+| field | description |
+|-------|---------|
+| risk_level | governance risk classification（R0–R3） |
+| action_type | suggested governance action（READ / WRITE / …） |
+| scope_level | permission scope or impact level |
+| verifiability | whether the claim can be externally verified |
+
+**示例（Gate 实际消费的 evidence 结构）：**
+
+```json
+{
+  "risk_level": "R2",
+  "action_type": "WRITE",
+  "scope_level": "REPO",
+  "verifiability": true
+}
+```
+
+该归一化结构是 Gate 决策 pipeline 消费的稳定接口，与 domain 无关。
+
+### Why this abstraction
+
+**为什么不是 Signal → Gate？** Signal 承载各 domain 原始语义（review_bug、scope_request、tool_call），形式各异。Gate 直接解析 signal 则每新增 domain 即需改 Gate；Evidence 提供标准字段，Gate 与 domain 解耦。
+
+**Evidence 作为治理语义层：** Evidence 将不同 domain 的信号归一为稳定的治理决策输入。各 domain 语义由 EvidenceProvider 归一为治理语义（risk_level、action_type、scope_level、verifiability），类似 OPA / Envoy 的 input normalization。
+
+**策略稳定性与扩展性：** Gate 只依赖 evidence 标准字段，domain 扩展仅在 EvidenceProvider 层，Gate 核心不变。新 domain 实现 Signal + EvidenceProvider 即可接入，PR 与 Permission 已验证该路径。
+
+---
+
+## 4. Design Boundaries
 
 | 组件 | 职责边界 |
 |------|----------|
@@ -106,7 +152,7 @@ flowchart LR
 
 ---
 
-## 4. Why Rule Explosion Is Controlled
+## 5. Why Rule Explosion Is Controlled
 
 | 机制 | 说明 |
 |------|------|
@@ -114,52 +160,26 @@ flowchart LR
 | **Routing 而非规则** | loop-aware routing 只决定「选哪个矩阵」，不决定「加什么规则」。矩阵数量有限（base / converged / churn），不随场景线性增长。 |
 | **Adapter 隔离域** | PR 工具链（Greptile、CodeRabbit 等）信号各异，adapter 做映射，catalog 和 Gate 保持稳定。 |
 
----
-
-## 5. Architecture Upgrade
-
-系统已升级为三层治理架构，PR loop 是第一个接入的 signal domain。
-
-| 层级 | 说明 |
-|------|------|
-| **Signal Layer** | `(domain, signal_type, payload)`。Gate 不解析 payload。 |
-| **Evidence Providers** | 插件式：`EvidenceProvider.supports(signal)`、`evaluate(signal)` → `GovernanceEvidence`。 |
-| **AI Responsibility Gate** | 只依赖 evidence 标准字段（risk_level, action_type, scope_level, verifiability）。 |
-
-**要点：**
-
-- Gate 只消费 evidence 标准字段，不直接理解具体 domain payload。
-- PR loop 是第一个 signal domain（domain=pr，signal_type=review_bug/ci_failure/maintainer_intervention/nit_only）。
-- 新 domain 通过 **Signal + EvidenceProvider** 接入，无需修改 Gate 核心。
-
-### Why this abstraction
-
-**为什么 Gate 只消费 evidence？** Signal 承载各 domain 的原始语义（如 PR 的 review_bug、permission 的 scope_request），形式各异。若 Gate 直接解析 signal，则每增加一个 domain 就要改 Gate，耦合度高。Evidence 提供 Gate 可消费的**标准字段**（risk_level, action_type, scope_level, verifiability），Gate 只依赖这些字段做裁决，与 domain 无关。
-
-**Signal / Evidence / Gate 的解耦关系：** Signal 层负责「表达」，Evidence 层负责「转换」，Gate 层负责「裁决」。各层职责单一，domain 语义变化不会穿透到 Gate。
-
-**这种分层如何支持多 domain 扩展？** 新 domain 只需实现 Signal 格式 + EvidenceProvider，将 domain 语义映射为 evidence 标准字段，即可接入现有 Gate pipeline，无需修改 Gate 核心。PR 与 Permission 两个 domain 的验证已证明该路径成立。
+**Loop governance 通用性：** PR loop governance 是 agent loop governance 的一类实例；nit_only_streak、round_index 等机制可泛化至 AI coding loop、tool retry loop、planner-executor loop 等场景。
 
 ---
 
 ## 6. Multi-Domain Validation
 
-系统已完成多 domain 验证，证明其不是 PR 专用 demo，而是 **AI Responsibility Gate / AI Agent Governance Control Plane** 的雏形。
+系统已完成多 domain 验证，**AI Responsibility Gate 当前为 governance decision engine**，可演进为完整 Control Plane。Gate 集中治理决策、策略外置，符合 control plane 典型特征。
 
 | Domain | 状态 | 说明 |
 |--------|------|------|
 | **Domain 1: PR loop governance** | 已验证 | loop-aware matrix routing，8/8 rounds replay 通过 |
 | **Domain 2: Permission governance** | 已验证 | scope_request → risk_level，2/2 rounds replay 通过 |
 
-**要点：**
-
-- 两个 domain 均通过 replay 离线验证，Gate 核心未改动。
-- 新 domain 接入路径：Signal + EvidenceProvider → standardized governance inputs → 现有 Gate pipeline。
-- 系统具备多 domain 扩展能力，可作为 AI Agent 治理控制面雏形。
+**Cross-domain risk normalization：** 各 domain 风险语义由对应 EvidenceProvider 按统一治理风险分级规范映射到 risk_level scale（R0–R3），进入 Gate 前已完成归一化，可比较。
 
 ### Control Plane 边界说明
 
-**当前已具备的 Control Plane 能力：**
+**定位：** 当前为 governance decision engine（策略裁决 + 策略配置化）。完整 Control Plane 需补齐 runtime integration、policy distribution、observability、audit。
+
+**当前已具备的能力：**
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
@@ -181,6 +201,8 @@ flowchart LR
 
 ## 7. Replay 结果表
 
+Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流（governance CI）。策略变更后通过 replay 回归验证，确保决策行为符合预期。
+
 ### case_001：真实案例（[OpenClaw PR #27286](https://github.com/openclaw/openclaw/pull/27286) — gateway remote token fallback）
 
 | Round | loop_state | project_signals | effective_matrix | decision | expected | match |
@@ -199,7 +221,7 @@ flowchart LR
 | 3 | (3, 3) | UNKNOWN_SIGNAL | pr_loop_phase_e_v0.1 | ALLOW | ALLOW | ✓ |
 | 4 | (5, 0) | UNKNOWN_SIGNAL | pr_loop_churn_v0.1 | HITL | HITL | ✓ |
 
-**汇总：** 8 rounds，8/8 通过，Accuracy 100%。
+**汇总：** 8 rounds，当前 replay 样例集下预期决策与实际决策一致（8/8）。
 
 ### Permission Domain（case_001_scope_read、case_002_scope_admin）
 
@@ -208,7 +230,7 @@ flowchart LR
 | case_001_scope_read | read | LOW_VALUE_NITS | ALLOW | ALLOW | ✓ |
 | case_002_scope_admin | admin | BUILD_CHAIN | HITL | HITL | ✓ |
 
-**汇总：** 2 rounds，2/2 通过，Accuracy 100%。
+**汇总：** 2 rounds，当前 replay 样例集下预期决策与实际决策一致（2/2）。
 
 ### 总体汇总
 
@@ -218,9 +240,22 @@ flowchart LR
 | Permission | 2 | 2/2 | case_001_scope_read + case_002_scope_admin |
 | **Tests** | — | **116 passed** | 全量测试通过 |
 
-**Interpretation:** case_001 demonstrates real-world PR loop governance (Greptile review → CI failure → maintainer intervention); case_002 isolates loop-aware routing behavior. Permission domain validates scope_request → risk_level → decision path with read→ALLOW, admin→HITL.
+**Interpretation：** case_001 展示真实 PR loop 治理路径；case_002 用于隔离验证 loop-aware routing；Permission domain 验证 scope_request → risk_level → decision 的跨 domain 接入能力。These results demonstrate correctness of the governance logic on the current replay dataset, rather than statistical model evaluation.
 
-*Note: In case_002, LOW_VALUE_NITS is mapped to UNKNOWN_SIGNAL by the adapter for mechanism isolation (routing behavior is independent of signal semantics).*
+**Decision Trace 示例：**
+
+```json
+{
+  "decision": "HITL",
+  "risk_level": "R3",
+  "effective_matrix": "pr_loop_churn_v0.1",
+  "trace": ["ci_failure", "maintainer_intervention"]
+}
+```
+
+决策 trace 支持治理决策的可观测性与可审计性，为未来的 observability、audit、decision explainability 提供基础。
+
+*注：case_002 中 LOW_VALUE_NITS 被 adapter 映射为 UNKNOWN_SIGNAL，用于隔离验证 loop routing 机制（routing 行为与 signal 语义解耦）。*
 
 ---
 
@@ -247,7 +282,7 @@ flowchart LR
 
 **验证：**
 
-> 我现在已经做了两个 replay case：一个是真实 OpenClaw PR，一个是教学型 reviewer loop case。目前 8/8 rounds replay 全部通过。此外，Permission domain 也已完成验证（read→ALLOW、admin→HITL，2/2 通过），证明系统不是 PR 专用，而是多 domain 治理控制面雏形。Replay allows offline validation of governance policies without interfering with live PR workflows.
+> 我做了两个 replay case：真实 OpenClaw PR 与教学型 reviewer loop case，8/8 rounds 通过。Permission domain 已验证（read→ALLOW、admin→HITL，2/2 通过），系统为多 domain 治理决策引擎。Replay 支持策略测试与回归验证（governance CI），不干扰线上 agent。
 
 **收尾：**
 
@@ -260,9 +295,15 @@ flowchart LR
 | 问题 | 答案 |
 |------|------|
 | 为什么不直接写规则？ | 规则数量会增长，但复杂度应该限制在 policy 层，而不是 core。 |
-| 为什么要 replay？ | Replay 可以用真实案例验证治理策略，而不影响线上 PR。 |
+| 为什么要 replay？ | Replay 支持治理策略测试与回归验证，不干扰线上 agent；相当于 governance CI。 |
 | 未来怎么扩展？ | 新的 PR 工具链只需要 adapter。Gate core 不变。 |
-| 是否只支持 PR？ | 否。Permission domain 已验证（2/2 通过），Gate 核心未改，证明多 domain 扩展路径成立。 |
+| 是否只支持 PR？ | 否。Permission domain 已验证（2/2 通过），Gate 核心未改，多 domain 扩展路径成立。 |
+| 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 将 domain 原生风险映射到统一的 risk_level scale（R0–R3），进入 Gate 前已完成归一化。 |
+| 为什么 Evidence 不是 policy layer？ | Evidence 层负责将 domain signal 归一为治理语义，policy 层负责根据标准化 evidence 做裁决。前者解决语义归一化，后者解决决策规则，两者职责不同。 |
+| loop_state 为什么不算业务规则？ | loop_state 只作为 routing context 决定选用哪套矩阵，不直接表达 domain 业务语义；具体决策规则仍由矩阵中的 policy 定义。 |
+| 为什么要 Evidence layer？ | To decouple domain signals from governance policy。 |
+| 为什么不用 OPA？ | OPA focuses on authorization policy；本系统 governs agent behavior loops，职责不同。 |
+| 为什么需要 matrix？ | To externalize governance rules into versioned policy artifacts。 |
 
 ---
 
