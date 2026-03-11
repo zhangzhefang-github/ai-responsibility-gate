@@ -2,16 +2,26 @@
 
 **AI Responsibility Gate – PR Loop Governance Architecture**
 
-> 用于向老师/评审汇报 AI 责任网关的 PR 循环治理扩展。结构：一页架构总结 → 详细架构图 → 三层架构 → 职责边界 → 规则复杂度控制 → 多 domain 验证 → 结果表 → 讲稿 → 问答。
+> 面向技术架构师/评审的汇报材料。结构：一页总结（问题-抽象-机制-证明）→ 流程 → 治理架构 → 设计边界 → 规则控制 → 多域验证 → 结果表 → 讲稿 → 架构边界问答。
+> 业务方精简版见 [PR_LOOP_REPLAY_BRIEFING_TEACHER.md](PR_LOOP_REPLAY_BRIEFING_TEACHER.md)。
 >
 > **建议**：在 GitHub 上查看以正确渲染 Mermaid 图。
 
+**定位：** 这次汇报的重点，不是「如何做一个更聪明的 AI reviewer」，而是「如何给 AI reviewer / coding loop 增加一个确定性的治理裁决层」。
+
 **背景：** AI Responsibility Gate 是责任中心化决策系统（signal → evidence → matrix → decision）。
-本文汇报其 PR 循环治理扩展：在 multi-agent PR 场景下，通过 loop-aware matrix routing 实现收敛与 churn 的自动切换，并用 replay 验证。
+本文不是在单独讨论 PR review 技巧，而是在 PR multi-agent loop 场景中验证 AI Responsibility Gate 这套治理骨架是否成立。PR loop 是第一个验证域；Permission domain 已验证该骨架可跨 domain 复用。
+
+**当前实现状态：** 当前设计不是停留在概念层，已完成最小实现并在本地跑通：
+
+- PR loop replay 已可执行
+- loop-aware matrix routing 已生效
+- case / matrix / adapter / gate 已贯通
+- 当前样例集下 PR loop 8/8、Permission 2/2 与预期一致
 
 ---
 
-## 1. 一页架构总结
+## 1. 一页总结（架构师版）
 
 ```mermaid
 flowchart TB
@@ -47,24 +57,47 @@ flowchart TB
     end
 ```
 
-**五关键信息点：**
+### 要解决的问题
 
-| # | 要点 | 说明 |
-|---|------|------|
-| 1 | PR is multi-agent | Author, Reviewer, CI, Maintainer |
-| 2 | Case JSON as contract | 统一 replay 输入 |
-| 3 | Adapter isolates domain | PR 信号 → 治理信号 |
-| 4 | Gate as decision authority | signal → evidence → matrix → decision |
-| 5 | Loop-aware routing | loop_state → 矩阵切换 |
+AI coding 时代，PR 已经变成 Author / Reviewer / CI / Maintainer 共同参与的 multi-agent loop。
+问题不在「AI 能不能 review」，而在：
 
-**1 分钟讲解话术：**
+- reviewer loop 容易反复 churn
+- AI 对 pass/fail 的判断不稳定
+- 人工若对全部 PR 做同层级把关，无法扩展
 
-> 1. PR 在 AI coding 时代已经变成一个 multi-agent loop。  
-> 2. 所以我把 PR 过程抽象成 Case JSON，然后通过 Adapter 转换成治理信号。  
-> 3. 这些信号进入 AI Responsibility Gate，Gate 是唯一裁决点。  
-> 4. Gate 内部使用 signal → evidence → matrix → decision 的治理模型。  
-> 5. 我新增了 loop-aware matrix routing，根据 loop_state 切换治理策略。  
-> 6. 我用两个 replay case 验证了这个机制，8/8 rounds 通过。
+### 核心设计
+
+将「发现问题」和「做裁决」拆开：
+
+| 角色 | 职责 |
+|------|------|
+| AI / 工具链 | 产出 signal |
+| Gate | 做 signal → evidence → matrix → decision |
+
+即：**AI 提供风险信号，Gate 负责确定性裁决**。
+
+### 这次新增的能力
+
+PR 不是单轮判断，而是循环状态判断。因此引入 **loop-aware matrix routing**：
+
+| 条件 | 矩阵 |
+|------|------|
+| nit_only_streak ≥ 3 | converged matrix |
+| round_index ≥ 5 | churn matrix |
+| 其他 | base matrix |
+
+### 当前验证状态
+
+本地已实现最小闭环并跑通：
+
+| 验证项 | 结果 |
+|--------|------|
+| PR loop replay | 8/8 rounds 符合预期 |
+| Permission replay | 2/2 符合预期 |
+| 全量测试 | 116 passed |
+
+**结论：** PR loop 证明了这套 Gate 不只是单点准入，而可以演进为跨 domain 的 agent governance decision layer。
 
 ---
 
@@ -188,8 +221,24 @@ nit_only_streak、round_index 等机制可泛化至 AI coding loop、tool retry 
 
 ## 6. 多域验证
 
-系统已完成多 domain 验证，**AI Responsibility Gate 当前为 governance decision engine**，可演进为完整 Control Plane。
+系统已完成多 domain 验证。**AI Responsibility Gate 当前已验证其作为 governance decision engine 的成立性**，后续有演进为更完整治理控制面的可能。
 Gate 集中治理决策、策略外置，符合 control plane 典型特征。
+
+### 当前实现状态（可复现原型）
+
+当前方案已完成最小实现并在本地跑通，包含以下部件：
+
+| 部件 | 说明 |
+|------|------|
+| Gate core | signal → evidence → matrix → decision |
+| loop-aware matrix routing | 根据 loop_state 选矩阵 |
+| replay runner | PR loop / Permission 离线重放 |
+| PR loop case schema | `cases/pr_loop_real/*.json` |
+| adapter | PR 信号 → 治理信号映射 |
+| matrix 配置 | pr_loop_demo / churn / phase_e / permission_demo |
+| permission domain | 最小接入验证 |
+
+**当前验证目标**不是生产可用性，而是验证：Gate 抽象是否可执行、loop_state 是否能稳定驱动矩阵切换、domain 接入是否不需要修改 Gate core、策略是否可通过 replay 做回归验证。
 
 | Domain | 状态 | 说明 |
 |--------|------|------|
@@ -342,65 +391,50 @@ Permission domain 验证 scope_request → risk_level → decision 的跨 domain
 
 ---
 
-## 9. 问答
+## 9. 架构边界问答（8 个核心问题）
 
-| 层级 | 问题 | 说明 |
-|------|------|------|
-| 1. 存在性 | 为什么需要独立的 Gate？ | 回答「为何需要 Gate」 |
-| 2. 信任（核心） | 如果 Agent 伪造 loop_state？ | Stateless but Verifiable，专家最关注 |
-| 3. 信任 | Reviewer Bot 虚假信号？ | 信号可信度 |
-| 4–7. 架构 | Evidence layer、matrix、Evidence vs policy、routing | 架构设计理解 |
-| 8–11. 跨域 | loop_state 不算业务规则、R2 对等、matrix 爆炸、risk_level 可比较 | 跨域与扩展 |
-| 12–13. 方案对比 | OPA、直接写规则 | 为何不选其他方案 |
-| 14–18. 运维 | replay、扩展、只支持 PR、Matrix 切换、性能 | 实践与运维 |
+| # | 类别 | 问题 |
+|---|------|------|
+| 1 | 存在性 | 为什么需要独立的 Gate？ |
+| 2 | 存在性 | 为什么不让 AI 直接 pass/fail？ |
+| 3 | 信任 | 如果 runtime 提供的 loop_state 不可信怎么办？ |
+| 4 | 架构 | 为什么要 Evidence layer？ |
+| 5 | 架构 | 为什么 routing 不直接写进 matrix 条件？ |
+| 6 | 扩展 | matrix 会不会爆炸？ |
+| 7 | 运维 | 为什么要 replay？ |
+| 8 | 方案 | 为什么这不是普通规则引擎 / OPA？ |
 
-### 1. 存在性
+### 1. 为什么需要独立的 Gate？
 
-| 问题 | 答案 |
-|------|------|
-| 为什么需要独立的 Gate？为什么不把 policy 写在 Agent 或 Workflow 里？ | 多 Agent 协作时，若每个 Agent 自实现策略，治理逻辑会碎片化。Gate 将治理决策抽离为统一决策中心：Agent 负责执行行为，Gate 负责裁决行为。类似 API Gateway 或 K8s Admission Controller。 |
+多 Agent 协作时，若每个 Agent 自实现策略，治理逻辑会碎片化。Gate 将治理决策抽离为统一决策中心：Agent 负责执行行为，Gate 负责裁决行为。类似 API Gateway 或 K8s Admission Controller。
 
-### 2. 信任
+### 2. 为什么不让 AI 直接 pass/fail？
 
-| 问题 | 答案 |
-|------|------|
-| 如果 Agent 伪造 loop_state（例如一直发送 round_index=1），Gate 是否会被绕过？ | loop_state 属于 runtime context，由 agent runtime 或 replay 提供。Gate 不维护 runtime state，以保持 control plane 与 execution plane 的解耦。若 runtime 不可信，应在 runtime 层或 observability/audit 系统中进行状态校验，而不是在 Gate 内部维护执行状态，否则 Gate 将演变为 workflow engine。**Stateless but Verifiable（新增）：** Gate 本身保持 stateless，不维护 runtime 执行状态；但通过 decision trace、observability 或外部 audit 系统，可以对执行序列进行一致性校验，从而增强治理可验证性。Gate 不直接信任 runtime 输入，而是依赖外部可验证机制。 |
-| 如果 Reviewer Bot 产生虚假 BUG_RISK 信号，Gate 会被带偏吗？ | 两层防御：Evidence schema 预留 verifiability，EvidenceProvider 可产出该字段；矩阵可据此扩展为将不可验证信号升级为 HITL 或 ONLY_SUGGEST。Gate 不直接信任 signal，通过 policy 对冲信号噪音。当前假设 EvidenceProvider 为可信组件；若 Provider 不可信，需在 Provider 层增加校验或审计。 |
+实践发现 AI reviewer 容易 nit picking、endless refinement、decision instability。一旦把「是否通过」交给 AI 自主判断，容易失控。Gate 的设计是：AI 只提供风险信号，Gate 用确定性规则裁决，决策权不在 AI。
 
-### 3. 架构
+### 3. 如果 runtime 提供的 loop_state 不可信怎么办？
 
-| 问题 | 答案 |
-|------|------|
-| 为什么要 Evidence layer？ | 将各 domain 原始 signal 归一为治理语义（risk_level、action_type 等）。若 Gate 直接消费 signal，每增 domain 即需改 Gate，核心膨胀。Evidence 层完成 domain→governance 转换，Gate 只依赖稳定 schema。 |
-| 为什么需要 matrix？ | 将治理规则从代码抽离为配置。规则写代码则每次策略变更需改代码、重发布。Matrix 以 YAML 配置、可版本管理、可 replay 回归，策略独立演进而不动 Gate 核心。 |
-| 为什么 Evidence 不是 policy layer？ | Evidence 解决语义归一化（signal→risk_level 等）；Policy（matrix）解决决策规则（根据 evidence 裁决）。职责不同。 |
-| 为什么需要 routing，而不是把 loop_state 写进 matrix 条件？ | loop_state 决定「用哪套矩阵」，矩阵内规则决定「evidence 如何裁决」。若把 loop_state 写进矩阵条件，每套策略需重复定义大量条件，矩阵膨胀；routing 将「选策略」与「执行策略」分离，矩阵数量有限。 |
+这是刻意的 trade-off。若 Gate 自己维护执行态，它会从 decision engine 变成 workflow engine，边界会失控。因此 Gate 保持 stateless，但通过 replay / trace / audit 提供可验证性：**execution truth 在 runtime，governance truth 在 Gate + audit**。若 runtime 不可信，应在 runtime 层或 observability / audit 系统中进行状态校验。
 
-### 4. 跨域与扩展
+### 4. 为什么要 Evidence layer？是不是过度设计？
 
-| 问题 | 答案 |
-|------|------|
-| loop_state 为什么不算业务规则？ | loop_state 只描述交互状态（round_index、nit_only_streak），作为 routing context 选矩阵，不表达 domain 语义。业务规则在 matrix 中定义。 |
-| PR 域的 R2 和 Permission 域的 R2 是对等的吗？ | risk_level 表示 governance risk，不是 domain-specific risk。EvidenceProvider 将 domain 风险映射到统一治理风险等级（R0–R3）。Gate 只处理 governance risk，不处理 domain 语义。 |
-| 随着 domain 增多，matrix 会不会爆炸？ | Matrix 按 governance pattern 增长（base、converged、churn），不按 domain 增长。新增 domain 通常只需新增 EvidenceProvider，不必新增 matrix。 |
-| 不同 domain 的 risk_level 是否可比较？ | 是。各 EvidenceProvider 按统一规范映射到 R0–R3，进入 Gate 前已归一化。 |
+因为 Gate 要跨 domain 复用。若直接消费 PR / Permission / Tool 原始 signal，Gate 核心会被 domain 侵蚀。Evidence layer 的作用不是增加复杂度，而是把 domain-specific 语义提前归一，**保护 Gate core 稳定**。
 
-### 5. 方案对比
+### 5. 为什么 routing 不直接写进 matrix 条件？
 
-| 问题 | 答案 |
-|------|------|
-| 为什么不用 OPA？ | OPA 解决 authorization（谁访问什么资源）；本系统解决 agent 行为治理（loop churn、tool 风险、是否 HITL）。关注点不同。 |
-| 为什么不直接写规则？ | 规则写代码则 if/else 随场景膨胀。Matrix 将规则限制在 policy 层，Gate core 只执行 pipeline，核心稳定、策略可独立演进。 |
+loop_state 决定「用哪套矩阵」，矩阵内规则决定「evidence 如何裁决」。若把 loop_state 写进矩阵条件，每套策略需重复定义大量条件，矩阵膨胀；routing 将「选策略」与「执行策略」分离，矩阵数量有限。
 
-### 6. 运维与实践
+### 6. matrix 会不会爆炸？
 
-| 问题 | 答案 |
-|------|------|
-| 为什么要 replay？ | 策略变更后，用历史 case 离线重跑，校验决策是否变化。相当于 governance CI，确保策略演进不破坏已有行为。 |
-| 未来怎么扩展？ | 新 domain 只需 adapter + EvidenceProvider，Gate core 不变。 |
-| 是否只支持 PR？ | 否。Permission domain 已验证，Gate 未改，多 domain 路径成立。 |
-| Matrix 版本的平滑切换怎么做？ | Matrix 为 versioned YAML，存 Git 或配置中心；Decision Request 可带版本标签实现灰度；Replay 做回归。 |
-| 性能开销如何？会成为瓶颈吗？ | Gate 仅做矩阵匹配，无复杂推理（推理在 EvidenceProvider），延迟毫秒级。 |
+Matrix 按 governance pattern 增长（base、converged、churn），不按 domain 增长。新增 domain 通常只需新增 EvidenceProvider，不必新增 matrix。
+
+### 7. 为什么要 replay？
+
+策略变更后，用历史 case 离线重跑，校验决策是否变化。相当于 **governance CI**，确保策略演进不破坏已有行为。传统 AI 系统少有这一能力。
+
+### 8. 为什么这不是普通规则引擎 / OPA？
+
+本系统并非单纯把 if/else 外置，而是针对 AI agent 场景增加了三层抽象：**Signal / Evidence 解耦**（吸收 AI / reviewer / tool 的异构语义）、**Loop-aware routing**（将循环状态纳入治理上下文）、**Replay-based validation**（策略变更可通过历史 case 回归验证）。因此它更接近于 AI agent 的治理裁决层，而非传统业务规则表。OPA 解决 authorization（谁访问什么资源）；本系统解决 agent 行为治理（loop churn、是否 HITL）。
 
 ---
 
