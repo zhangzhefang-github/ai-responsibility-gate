@@ -3,7 +3,7 @@
 **AI Responsibility Gate – PR Loop Governance Architecture**
 
 > 结构：一页总结（问题-抽象-机制-证明）→ 流程 → 治理架构 → 设计边界 → 规则控制 → 多域验证 → 结果表 → 讲稿 → 架构边界问答。
-> 业务方精简版见 [PR_LOOP_REPLAY_BRIEFING_TEACHER.md](PR_LOOP_REPLAY_BRIEFING_TEACHER.md)。
+> 精简版见 [PR_LOOP_REPLAY_BRIEFING_SUMMARY.md](PR_LOOP_REPLAY_BRIEFING_SUMMARY.md)。
 >
 > **建议**：在 GitHub 上查看以正确渲染 Mermaid 图。
 
