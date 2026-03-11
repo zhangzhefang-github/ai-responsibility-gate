@@ -2,7 +2,7 @@
 
 **AI Responsibility Gate – 问题 → 机制 → 验证**
 
-> 3 页精简版，面向快速阅读场景；完整技术版（含架构、实现状态、8 问）见 [PR_LOOP_REPLAY_BRIEFING.md](PR_LOOP_REPLAY_BRIEFING.md)。
+> 面向快速阅读场景；完整技术版（含架构、实现状态、8 问）见 [PR_LOOP_REPLAY_BRIEFING.md](PR_LOOP_REPLAY_BRIEFING.md)。
 
 ---
 
