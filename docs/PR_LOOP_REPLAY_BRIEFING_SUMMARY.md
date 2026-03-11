@@ -24,7 +24,7 @@ AI Reviewer → 新 nit
 
 **结果**：PR 无限循环、reviewer 吹毛求疵、maintainer 被迫介入。
 
-**现实例子**：我统计过 OpenClaw 的 PR 活跃情况，高峰期单日曾观测到 900+ PR；在这种规模下，如果每个 PR 都由人工做同层级 review，成本会很快失控。
+**现实例子**：OpenClaw 的 PR 活跃度较高，高峰期单日曾观测到 900+ PR；在这种规模下，如果每个 PR 都由人工做同层级 review，成本会很快失控。
 
 ### 为什么不能让 AI 判断是否通过？
 
@@ -138,7 +138,7 @@ policy 变更 → replay 历史 case → 验证决策稳定性
 
 **验证**：两个 replay case，8/8 通过。治理策略可回归测试，相当于 governance CI。
 
-**收尾**：本质是 AI 系统的治理层，类似 K8s Admission Controller。目前先完成了最小验证，后面如果再积累到更多真实 case，我再继续向您汇报。
+**收尾**：本质是 AI 系统的治理层，类似 K8s Admission Controller。目前先完成了最小验证；后续如果积累到更多真实 case，将继续扩展验证。
 
 ---
 
