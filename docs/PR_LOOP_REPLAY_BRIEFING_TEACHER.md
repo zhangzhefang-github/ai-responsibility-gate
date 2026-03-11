@@ -2,7 +2,7 @@
 
 **AI Responsibility Gate – 问题 → 机制 → 验证**
 
-> 3 页精简版，面向业务负责人。技术架构师版（含完整架构、实现状态、8 问）见 [PR_LOOP_REPLAY_BRIEFING.md](PR_LOOP_REPLAY_BRIEFING.md)。
+> 3 页精简版，面向老师 / 业务负责人。技术架构师版（含完整架构、实现状态、8 问）见 [PR_LOOP_REPLAY_BRIEFING.md](PR_LOOP_REPLAY_BRIEFING.md)。
 
 ---
 
@@ -24,7 +24,7 @@ AI Reviewer → 新 nit
 
 **结果**：PR 无限循环、reviewer 吹毛求疵、maintainer 被迫介入。
 
-**现实例子**：OpenClaw 一天 900+ PR，人工 review 不可扩展。
+**现实例子**：我统计过 OpenClaw 的 PR 活跃情况，高峰期单日曾观测到 900+ PR；在这种规模下，如果每个 PR 都由人工做同层级 review，成本会很快失控。
 
 ### 为什么不能让 AI 判断是否通过？
 
@@ -74,7 +74,7 @@ Gate 根据 loop 状态自动切换治理策略（round_index ≥ 5 优先）。
 | permission change | | |
 | infra change | | |
 
-**规则数量**：通常 < 20 条，工程上有限且稳定。
+**规则数量**：通常几十条以内，工程上有限且稳定。
 
 ### 架构（简化）
 
@@ -134,11 +134,11 @@ policy 变更 → replay 历史 case → 验证决策稳定性
 
 **设计**：我把决策权从 AI 抽离。AI 只负责发现问题，Gate 负责裁决。规则是确定性的，不交给 AI 判断 pass/fail。
 
-**机制**：规则不是穷举，只定义治理边界，通常 < 20 条。PR loop 是状态机：连续 nit 可放行，轮次过多升级人工。
+**机制**：规则不是穷举，只定义治理边界，通常几十条以内。PR loop 是状态机：连续 nit 可放行，轮次过多升级人工。
 
 **验证**：两个 replay case，8/8 通过。治理策略可回归测试，相当于 governance CI。
 
-**收尾**：本质是 AI 系统的治理层，类似 K8s Admission Controller。等有更清晰的结论再向您汇报。
+**收尾**：本质是 AI 系统的治理层，类似 K8s Admission Controller。目前先完成了最小验证，后面如果再积累到更多真实 case，我再继续向您汇报。
 
 ---
 
@@ -146,7 +146,7 @@ policy 变更 → replay 历史 case → 验证决策稳定性
 
 | 问题 | 一句话回答 |
 |------|------------|
-| 规则开发工作量大吗？ | 不大。只定义治理边界，不穷举，通常 < 20 条。 |
+| 规则开发工作量大吗？ | 不大。只定义治理边界，不穷举，通常几十条以内。 |
 | AI 不稳定能兜住吗？ | 能。决策权在 Gate，AI 只提供信号，不做 pass/fail。 |
 | 实际可用吗？ | 已用真实 OpenClaw PR 验证，8/8 rounds 通过。 |
 

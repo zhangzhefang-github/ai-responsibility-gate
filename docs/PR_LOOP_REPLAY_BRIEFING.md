@@ -42,8 +42,8 @@ flowchart TB
         Routing["loop-aware matrix routing"]
         Pipeline["signal → evidence → matrix → decision"]
         GateInput --> Routing --> Pipeline
-        Routing -->|"nit_only_streak ≥ 3"| Conv["converged matrix"]
         Routing -->|"round_index ≥ 5"| Churn["churn matrix"]
+        Routing -->|"nit_only_streak ≥ 3"| Conv["converged matrix"]
         Routing -->|"otherwise"| Base["base matrix"]
     end
 
@@ -224,7 +224,7 @@ nit_only_streak、round_index 等机制可泛化至 AI coding loop、tool retry 
 ## 6. 多域验证
 
 系统已完成多 domain 验证。**AI Responsibility Gate 当前已验证其作为 governance decision engine 的成立性**，后续有演进为更完整治理控制面的可能。
-Gate 集中治理决策、策略外置，符合 control plane 典型特征。
+Gate 集中治理决策、策略外置，在架构上具备 control plane 的典型特征。
 
 ### 实现部件清单
 
@@ -389,7 +389,7 @@ Permission domain 验证 scope_request → risk_level → decision 的跨 domain
 
 **收尾：**
 
-> 这说明 AI coding / reviewer 多 agent 协作场景，以及更一般的 agent action governance 场景，都可以通过责任网关进行治理，而不需要改变原有工具链。
+> 这说明 AI coding / reviewer 多 agent 协作场景，以及更一般的 agent action governance 场景，都可以通过一个独立的治理裁决层来稳定运行。
 
 **讲稿加餐（可选）：** 这套架构的核心是将治理逻辑从业务代码中剥离。我们不仅实现了 Policy as Code（矩阵配置），还实现了 Loop as First-class Citizen（将循环状态作为治理的一等公民）。这为未来从「单点准入」演进到「全生命周期轨迹治理」打下了基础。
 
