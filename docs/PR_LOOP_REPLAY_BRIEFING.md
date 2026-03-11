@@ -2,7 +2,7 @@
 
 **AI Responsibility Gate – PR Loop Governance Architecture**
 
-> 面向技术架构师/评审的汇报材料。结构：一页总结（问题-抽象-机制-证明）→ 流程 → 治理架构 → 设计边界 → 规则控制 → 多域验证 → 结果表 → 讲稿 → 架构边界问答。
+> 结构：一页总结（问题-抽象-机制-证明）→ 流程 → 治理架构 → 设计边界 → 规则控制 → 多域验证 → 结果表 → 讲稿 → 架构边界问答。
 > 业务方精简版见 [PR_LOOP_REPLAY_BRIEFING_TEACHER.md](PR_LOOP_REPLAY_BRIEFING_TEACHER.md)。
 >
 > **建议**：在 GitHub 上查看以正确渲染 Mermaid 图。
@@ -83,9 +83,11 @@ PR 不是单轮判断，而是循环状态判断。因此引入 **loop-aware mat
 
 | 条件 | 矩阵 |
 |------|------|
+| round_index ≥ 5 | churn matrix（优先） |
 | nit_only_streak ≥ 3 | converged matrix |
-| round_index ≥ 5 | churn matrix |
 | 其他 | base matrix |
+
+> **优先级**：若同时满足 round_index ≥ 5 与 nit_only_streak ≥ 3，优先使用 churn matrix。
 
 ### 当前验证状态
 
@@ -97,7 +99,7 @@ PR 不是单轮判断，而是循环状态判断。因此引入 **loop-aware mat
 | Permission replay | 2/2 符合预期 |
 | 全量测试 | 116 passed |
 
-**结论：** PR loop 证明了这套 Gate 不只是单点准入，而可以演进为跨 domain 的 agent governance decision layer。
+**结论：** PR loop 证明了这套 Gate 不只是单点准入（只对单次进入做决策），而可以演进为跨 domain 的 agent governance decision layer，支持循环状态治理。
 
 ---
 
@@ -211,7 +213,7 @@ Adapter 是「搬运层」，EvidenceProvider 是「语义归一层」，Matrix 
 | 机制 | 说明 |
 |------|------|
 | **规则在矩阵中** | 规则写在 YAML 矩阵，不在代码里。新增场景优先扩展矩阵或 adapter 映射，Gate 核心逻辑不变。 |
-| **Routing 而非规则** | loop-aware routing 只决定「选哪个矩阵」，不决定「加什么规则」。矩阵数量有限（base / converged / churn），不随场景线性增长。Routing 根据 loop_state 选择适用的 policy matrix，随后 pipeline 在该矩阵下评估 evidence。 |
+| **Routing 而非规则** | loop-aware routing 只决定「选哪个矩阵」，不决定「加什么规则」。矩阵数量有限（base / converged / churn），不随场景线性增长。**优先级**：round_index ≥ 5 优先于 nit_only_streak ≥ 3（同时满足时用 churn matrix）。Routing 根据 loop_state 选择适用的 policy matrix，随后 pipeline 在该矩阵下评估 evidence。 |
 | **Adapter 隔离域** | PR 工具链（Greptile、CodeRabbit 等）信号各异，adapter 做映射，catalog 和 Gate 保持稳定。 |
 
 **Loop governance 通用性：** PR loop governance 是 agent loop governance 的一类实例；
@@ -224,7 +226,7 @@ nit_only_streak、round_index 等机制可泛化至 AI coding loop、tool retry 
 系统已完成多 domain 验证。**AI Responsibility Gate 当前已验证其作为 governance decision engine 的成立性**，后续有演进为更完整治理控制面的可能。
 Gate 集中治理决策、策略外置，符合 control plane 典型特征。
 
-### 当前实现状态（可复现原型）
+### 实现部件清单
 
 当前方案已完成最小实现并在本地跑通，包含以下部件：
 
@@ -315,11 +317,13 @@ Replay 支持治理策略测试与回归验证，不干扰线上 agent 工作流
 | 3 | (3, 3) | LOW_VALUE_NITS | pr_loop_phase_e_v0.1 | ALLOW | ALLOW | ✓ |
 | 4 | (5, 0) | LOW_VALUE_NITS | pr_loop_churn_v0.1 | HITL | HITL | ✓ |
 
-> **说明**：project_signals 来自 case 的 signals 经 adapter（Signal → EvidenceProvider → risk_level）映射后的结果。case_002 的 signals 为 LOW_VALUE_NITS（低价值 nit 类评论），映射为 R0 → LOW_VALUE_NITS。
+> **说明**：project_signals 是本项目的信号别名，来自 case 的 signals 经 adapter 映射；**实际决策输入**是 EvidenceProvider 归一后的 risk_level（R0–R3）。case_002 的 signals 为 LOW_VALUE_NITS（低价值 nit 类评论），映射为 R0。
 
 **汇总：** 8 rounds，当前 replay 样例集下预期决策与实际决策一致（8/8）。
 
 ### Permission Domain（case_001_scope_read、case_002_scope_admin）
+
+Permission domain 复用同一 project_signals 枚举，通过 EvidenceProvider 将 scope_request 映射到对应 risk_level。
 
 | Case | scope_request | project_signals | decision | expected | match |
 |------|---------------|-----------------|----------|----------|-------|
@@ -341,7 +345,7 @@ case_002 用于隔离验证 loop-aware routing；
 Permission domain 验证 scope_request → risk_level → decision 的跨 domain 接入能力。
 上述结果验证了当前 replay 数据集上的治理逻辑正确性，而非统计模型评估。
 
-**Decision Trace 示例：**
+**Decision Trace 示例**（综合示例，非特指某 case）：
 
 ```json
 {

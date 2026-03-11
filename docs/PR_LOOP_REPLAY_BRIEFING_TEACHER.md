@@ -2,7 +2,7 @@
 
 **AI Responsibility Gate – 问题 → 机制 → 验证**
 
-> 3 页精简版，面向老师/业务负责人。技术架构师版（含完整架构、实现状态、8 问）见 [PR_LOOP_REPLAY_BRIEFING.md](PR_LOOP_REPLAY_BRIEFING.md)。
+> 3 页精简版，面向业务负责人。技术架构师版（含完整架构、实现状态、8 问）见 [PR_LOOP_REPLAY_BRIEFING.md](PR_LOOP_REPLAY_BRIEFING.md)。
 
 ---
 
@@ -24,7 +24,7 @@ AI Reviewer → 新 nit
 
 **结果**：PR 无限循环、reviewer 吹毛求疵、maintainer 被迫介入。
 
-**现实例子**：OpenClaw 一天 400+ PR，人工 review 不可扩展。
+**现实例子**：OpenClaw 一天 900+ PR，人工 review 不可扩展。
 
 ### 为什么不能让 AI 判断是否通过？
 
@@ -55,10 +55,10 @@ PR 不是单次决策，而是多轮状态：
 
 | 条件 | 治理策略 |
 |------|----------|
-| nit_only_streak ≥ 3 | 收敛 → 可放行 |
+| nit_only_streak ≥ 3 | 收敛 → 在 converged 条件下可放行 |
 | round_index ≥ 5 | 卡住 → 升级 HITL |
 
-Gate 根据 loop 状态自动切换治理策略。
+Gate 根据 loop 状态自动切换治理策略（round_index ≥ 5 优先）。
 
 ---
 
@@ -68,8 +68,8 @@ Gate 根据 loop 状态自动切换治理策略。
 
 **不会。** 规则不是穷举，而是只定义**治理边界**：
 
-| 必须人工 | 必须放行 | 其他 |
-|----------|----------|------|
+| 必须人工 | 在 converged 条件下可放行 | 其他 |
+|----------|--------------------------|------|
 | CI fail | nit only（连续 3 轮） | suggest |
 | permission change | | |
 | infra change | | |
